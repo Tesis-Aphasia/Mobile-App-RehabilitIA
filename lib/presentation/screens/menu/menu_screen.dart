@@ -11,10 +11,9 @@ class MenuScreen extends StatefulWidget {
 }
 
 class _MenuScreenState extends State<MenuScreen> {
-  final background = const Color(0xFFFEF9F4);
-  final orange = const Color(0xFFFF8A00);
+  final background = const Color(0xFFFFF7F2);   // Fondo suave
+  final orange = const Color(0xFFF48A63);       // Naranja cálido
 
-  // Ahora la primera pestaña es TERAPIAS
   int _currentIndex = 0;
   int completedCount = 0;
   String lastExercise = "-";
@@ -51,65 +50,138 @@ class _MenuScreenState extends State<MenuScreen> {
     }
   }
 
-  // ====================================
-  //            PÁGINAS
-  // ====================================
   final List<Widget> _pages = [];
 
   @override
   Widget build(BuildContext context) {
-    _pages.clear();
-    _pages.addAll([
-      _buildTherapies(),
-      _buildPersonalize(),
-      _buildProfile(),
-    ]);
+    _pages
+      ..clear()
+      ..addAll([
+        _buildTherapies(),
+        _buildPersonalize(),
+        _buildProfile(),
+      ]);
 
     return Scaffold(
       backgroundColor: background,
       body: SafeArea(child: _pages[_currentIndex]),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        backgroundColor: Colors.white,
-        indicatorColor: orange.withOpacity(0.15),
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
-        destinations: const [
-          NavigationDestination(
-              icon: Icon(Icons.psychology_rounded), label: "Terapias"),
-          NavigationDestination(
-              icon: Icon(Icons.build_rounded), label: "Personalizar"),
-          NavigationDestination(
-              icon: Icon(Icons.person_rounded), label: "Perfil"),
-        ],
+
+      // --- Bottom nav más "real" ---
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) => setState(() => _currentIndex = index),
+          backgroundColor: Colors.white,
+          selectedItemColor: orange,
+          unselectedItemColor: Colors.grey.shade400,
+          showUnselectedLabels: true,
+          type: BottomNavigationBarType.fixed,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.psychology_rounded),
+              label: "Terapias",
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.build_rounded),
+              label: "Personalizar",
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_rounded),
+              label: "Perfil",
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // ====================================
-  //        HEADER REUSABLE
-  // ====================================
+  // ===================================================
+  //             APP BAR REUTILIZABLE (logo + pop)
+  // ===================================================
+  Widget _topBar() {
+    return Row(
+      children: [
+        // Logo Rehabilita
+        Image.asset(
+          'icons/brain_logo.png',
+          height: 32,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          'Rehabilita',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: orange,
+            letterSpacing: 0.3,
+          ),
+        ),
+        const Spacer(),
+        // Iconito tipo notificación en pill blanca
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Icon(
+            Icons.logout_rounded,
+            size: 20,
+            color: Colors.grey.shade700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ===================================================
+  //                   HEADER
+  // ===================================================
   Widget _header(String title, String subtitle) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: Colors.black87,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: const TextStyle(fontSize: 16, color: Colors.black54),
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.grey.shade600,
+          ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 22),
       ],
     );
   }
 
-  // ====================================
-  //              TERAPIAS
-  //  (Pantalla principal)
-  // ====================================
+  // ===================================================
+  //                    TERAPIAS
+  // ===================================================
   Widget _buildTherapies() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -117,12 +189,16 @@ class _MenuScreenState extends State<MenuScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _header("¡Bienvenido!",
-                "Selecciona la terapia con la que quieres practicar hoy"),
+            _topBar(),
+            const SizedBox(height: 24),
+            _header(
+              "¡Bienvenido!",
+              "Selecciona la terapia con la que quieres practicar hoy",
+            ),
             _therapyCard(
               title: "Terapia VNeST",
               description:
-                  "Genera oraciones conectando sujeto, verbo y objeto para fortalecer la producción del lenguaje.",
+                  "Conecta sujeto, verbo y objeto para fortalecer la producción del lenguaje.",
               icon: Icons.hub_rounded,
               onTap: () => Navigator.pushNamed(context, '/vnest'),
             ),
@@ -130,7 +206,7 @@ class _MenuScreenState extends State<MenuScreen> {
             _therapyCard(
               title: "Recuperación Espaciada",
               description:
-                  "Practica información importante en intervalos crecientes para fortalecer la memoria.",
+                  "Repite conceptos a intervalos crecientes para reforzar la memoria.",
               icon: Icons.access_time_rounded,
               onTap: () => Navigator.pushNamed(context, '/sr'),
             ),
@@ -148,14 +224,14 @@ class _MenuScreenState extends State<MenuScreen> {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -165,26 +241,27 @@ class _MenuScreenState extends State<MenuScreen> {
         children: [
           Row(
             children: [
+              // Ícono en circulito con pop de color
               Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                padding: const EdgeInsets.all(14),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFE8DD),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: Colors.blue.shade400, size: 30),
+                child: Icon(icon, color: Color(0xFFF48A63), size: 28),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Text(
                 title,
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  color: Colors.blue.shade400,
+                  color: orange,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Text(
             description,
             style: const TextStyle(
@@ -193,24 +270,26 @@ class _MenuScreenState extends State<MenuScreen> {
               height: 1.4,
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           Center(
             child: ElevatedButton(
               onPressed: onTap,
               style: ElevatedButton.styleFrom(
                 backgroundColor: orange,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(25),
                 ),
+                elevation: 0,
               ),
               child: const Text(
                 "Comenzar",
                 style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),
@@ -219,56 +298,60 @@ class _MenuScreenState extends State<MenuScreen> {
     );
   }
 
-  // ====================================
-  //         PERSONALIZAR
-  // ====================================
-Widget _buildPersonalize() {
-    final orange = const Color(0xFFFF8A00);
+  // ===================================================
+  //                  PERSONALIZAR
+  // ===================================================
+  Widget _buildPersonalize() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          _topBar(),
+          const SizedBox(height: 24),
           const Text(
-            "Personaliza tu Práctica",
+            "Personaliza tu práctica",
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.w800,
-              color: Colors.black87,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 28),
+
+          // Iconito en círculo suave
           Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+            width: 110,
+            height: 110,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFE8DD),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.edit_rounded, color: Colors.blue.shade400, size: 40),
+            child: Icon(Icons.edit_rounded, color: orange, size: 44),
           ),
-          const SizedBox(height: 30),
+
+          const SizedBox(height: 26),
           const Text(
             "Crea ejercicios a tu medida",
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: Colors.black87,
             ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 10),
-          const Text(
-            "¡Queremos motivarte a que practiques más! La mejor manera de hacerlo es creando ejercicios a tu medida.",
+          Text(
+            "Diseña actividades adaptadas a tu vida diaria para mantener la motivación y el progreso.",
             style: TextStyle(
               fontSize: 14,
-              color: Colors.black54,
+              color: Colors.grey.shade700,
               height: 1.5,
             ),
             textAlign: TextAlign.center,
           ),
+
           const Spacer(),
+
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -280,9 +363,10 @@ Widget _buildPersonalize() {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(25),
                 ),
+                elevation: 0,
               ),
               child: const Text(
-                "Empezar a Personalizar",
+                "Empezar a personalizar",
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -297,21 +381,20 @@ Widget _buildPersonalize() {
     );
   }
 
-  // ====================================
-  //         TARJETA DE PROGRESO
-  // (se usa en Perfil)
-  // ====================================
+  // ===================================================
+  //              TARJETA DE PROGRESO
+  // ===================================================
   Widget _progressCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -325,17 +408,17 @@ Widget _buildPersonalize() {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Stack(
             alignment: Alignment.center,
             children: [
               SizedBox(
-                width: 110,
-                height: 110,
+                width: 120,
+                height: 120,
                 child: CircularProgressIndicator(
                   value: completedCount > 0 ? 1.0 : 0.0,
                   color: orange,
-                  strokeWidth: 10,
+                  strokeWidth: 9,
                   backgroundColor: Colors.grey.shade200,
                 ),
               ),
@@ -343,7 +426,7 @@ Widget _buildPersonalize() {
                 completedCount.toString(),
                 style: const TextStyle(
                   fontSize: 28,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
@@ -351,39 +434,45 @@ Widget _buildPersonalize() {
           const SizedBox(height: 12),
           Text(
             "Última terapia: $lastExercise",
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w600,
+              color: Colors.grey.shade800,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  // ====================================
-  //              PERFIL
-  // ====================================
+  // ===================================================
+  //                     PERFIL
+  // ===================================================
   Widget _buildProfile() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _header("Mi Perfil", "Tu progreso y configuración personal"),
-          _progressCard(),
-          const SizedBox(height: 30),
-          Center(
-            child: Text(
-              "Más opciones de perfil próximamente",
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontWeight: FontWeight.w600,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _topBar(),
+            const SizedBox(height: 24),
+            _header("Mi Perfil", "Tu progreso y configuración personal"),
+            _progressCard(),
+            const SizedBox(height: 32),
+            Center(
+              child: Text(
+                "Más opciones de perfil próximamente",
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

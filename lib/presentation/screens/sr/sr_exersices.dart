@@ -14,8 +14,8 @@ class SRExercisesScreen extends StatefulWidget {
 }
 
 class _SRExercisesScreenState extends State<SRExercisesScreen> {
-  final background = const Color(0xFFFEF9F4);
-  final orange = const Color(0xFFFF8A00);
+  final background = const Color(0xFFFFF7F2);
+  final orange = const Color(0xFFF48A63);
 
   bool loading = true;
   List<Map<String, dynamic>> cards = [];
@@ -27,12 +27,10 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
   TextEditingController answerCtrl = TextEditingController();
   Timer? timer;
 
-  // === SPEECH TO TEXT ===
   late stt.SpeechToText _speech;
   bool _isListening = false;
   String recognizedText = "";
 
-  // === Inicialización ===
   @override
   void initState() {
     super.initState();
@@ -46,10 +44,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
   Future<void> _initSpeech() async {
     var status = await Permission.microphone.request();
     if (status.isGranted) {
-      await _speech.initialize(
-        onStatus: (val) => print('Speech status: $val'),
-        onError: (val) => print('Speech error: $val'),
-      );
+      await _speech.initialize();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Por favor habilita el micrófono para usar voz.")),
@@ -66,7 +61,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
         onResult: (result) {
           setState(() {
             recognizedText = result.recognizedWords;
-            answerCtrl.text = recognizedText; // Se llena automáticamente el campo
+            answerCtrl.text = recognizedText;
           });
         },
       );
@@ -78,14 +73,14 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     setState(() => _isListening = false);
   }
 
-  // === Carga de tarjetas ===
   Future<void> _loadCards() async {
     final userId = Provider.of<RegisterViewModel>(context, listen: false).userId;
-    if (userId == null || userId.isEmpty) return;
-
+    if (userId == null || userId.isEmpty) {
+      setState(() => loading = false);
+      return;
+    }
 
     try {
-      // 1️⃣ Obtener IDs de ejercicios asignados al paciente
       final asignadosSnap = await FirebaseFirestore.instance
           .collection("pacientes")
           .doc(userId)
@@ -93,74 +88,64 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
           .get();
 
       final idsAsignados = asignadosSnap.docs
-          .map((doc) => doc.data()["id_ejercicio"] as String?)
+          .map((d) => d.data()["id_ejercicio"] as String?)
           .where((id) => id != null && id.isNotEmpty)
           .toList();
 
       if (idsAsignados.isEmpty) {
-        setState(() {
-          loading = false;
-        });
+        setState(() => loading = false);
         return;
       }
 
-      // 2️⃣ Traer los ejercicios SR correspondientes
       final ejerciciosSnap = await FirebaseFirestore.instance
           .collection("ejercicios_SR")
           .where("id_ejercicio_general", whereIn: idsAsignados)
           .get();
 
-      final data = ejerciciosSnap.docs.map((d) => {"id": d.id, ...d.data()}).toList();
+      final data = ejerciciosSnap.docs
+          .map((d) => {"id": d.id, ...d.data()})
+          .toList()
+          .cast<Map<String, dynamic>>();
 
       if (data.isEmpty) {
-        setState(() {
-          loading = false;
-        });
+        setState(() => loading = false);
         return;
       }
 
-      // 3️⃣ Establecer el primer ejercicio (SIEMPRE empezar desde el inicio)
       final first = data.first;
 
       setState(() {
         cards = data;
         currentCard = first;
-
-        // Ignoramos interval_index / streak históricos para el estado LOCAL
         cardState = {
           ...first,
-          "baseline_index": -1,
-          "interval_index": 0,          // siempre arrancar en el primer intervalo
-          "success_streak": 0,          // reiniciar racha local
-          "lapses": 0,                  // reiniciar lapsos locales
+          "interval_index": 0,
+          "success_streak": 0,
+          "lapses": 0,
           "last_answer_correct": null,
-          "last_timer_index": null,
         };
-
-        mode = "question";
-        feedback = "";
-        secondsLeft = 0;
         loading = false;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error cargando ejercicios: $e")),
-      );
+      debugPrint("Error cargando ejercicios SR: $e");
       setState(() => loading = false);
     }
   }
 
-
-  // === Submit respuesta ===
   void handleSubmit() async {
     if (currentCard == null || cardState == null) return;
+
     final userAns = answerCtrl.text.trim().toLowerCase();
-    final correctAns = (currentCard!["rta_correcta"] ?? "").trim().toLowerCase(); 
+    final correctAns = (currentCard!["rta_correcta"] ?? "").trim().toLowerCase();
     final isCorrect = userAns == correctAns;
 
     answerCtrl.clear();
     recognizedText = "";
-    final intervals = List<int>.from(currentCard!["intervals_sec"] ?? [15, 30, 60, 120, 240]);
+
+    final intervals = List<int>.from(
+      currentCard!["intervals_sec"] ?? [15, 30, 60, 120, 240],
+    );
+
     final nextIndex = isCorrect
         ? (cardState!["interval_index"] + 1).clamp(0, intervals.length - 1)
         : 0;
@@ -168,12 +153,8 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     final updated = {
       ...cardState!,
       "interval_index": nextIndex,
-      "success_streak": isCorrect
-          ? (cardState!["success_streak"] ?? 0) + 1
-          : 0,
-      "lapses": isCorrect
-          ? (cardState!["lapses"] ?? 0)
-          : (cardState!["lapses"] ?? 0) + 1,
+      "success_streak": isCorrect ? (cardState!["success_streak"] + 1) : 0,
+      "lapses": isCorrect ? cardState!["lapses"] : (cardState!["lapses"] + 1),
       "last_answer_correct": isCorrect,
       "next_due": DateTime.now().millisecondsSinceEpoch +
           intervals[nextIndex] * 1000,
@@ -183,20 +164,9 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
       cardState = updated;
       secondsLeft = intervals[nextIndex];
       feedback = isCorrect
-          ? "✅ Correcto"
-          : "❌ Incorrecto. Respuesta: ${currentCard!["rta_correcta"]}"; // 🔹 antes "answer"
+          ? "✅ ¡Correcto!"
+          : "❌ Incorrecto\nRespuesta: ${currentCard!["rta_correcta"]}";
       mode = "timer";
-    });
-
-    await FirebaseFirestore.instance
-        .collection("ejercicios_SR") // 🔹 antes "sr_cards"
-        .doc(currentCard!["id"])
-        .update({
-      "interval_index": updated["interval_index"],
-      "success_streak": updated["success_streak"],
-      "lapses": updated["lapses"],
-      "next_due": updated["next_due"],
-      "last_answer_correct": updated["last_answer_correct"],
     });
 
     _startCountdown();
@@ -216,13 +186,13 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
 
   void onTimerFinished() {
     final intervals = List<int>.from(currentCard!["intervals_sec"]);
+
     if (cardState!["interval_index"] >= intervals.length - 1 &&
         cardState!["last_answer_correct"] == true) {
-      setState(() {
-        mode = "doneCard";
-      });
+      setState(() => mode = "doneCard");
       return;
     }
+
     setState(() {
       mode = "question";
       feedback = "";
@@ -230,19 +200,20 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
   }
 
   void handleNextCard() {
+    if (currentCard == null) return;
     final currentIndex = cards.indexWhere((c) => c["id"] == currentCard!["id"]);
     final nextIndex = (currentIndex + 1) % cards.length;
+
     setState(() {
       currentCard = cards[nextIndex];
       cardState = {
         ...cards[nextIndex],
-        "baseline_index": -1,
         "interval_index": 0,
         "success_streak": 0,
         "lapses": 0,
         "last_answer_correct": null,
-        "last_timer_index": null,
       };
+
       mode = "question";
       feedback = "";
       secondsLeft = 0;
@@ -257,217 +228,308 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     super.dispose();
   }
 
+  // ---------------------------------------
+  //                 UI
+  // ---------------------------------------
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: background,
+        body: Center(
+          child: CircularProgressIndicator(color: orange),
+        ),
       );
     }
 
     if (cards.isEmpty) {
       return Scaffold(
         backgroundColor: background,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                "No hay ejercicios todavía 😊",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                child: const Text("Volver"),
-              )
-            ],
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  "No hay ejercicios aún 😄",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "Cuando tu terapeuta te asigne ejercicios de memoria,\nlos verás aquí.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade700,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: orange,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    "Volver",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
 
-    final intervals =
-        List<int>.from(currentCard!["intervals_sec"] ?? [15, 30, 60, 120, 240]);
+    final intervals = List<int>.from(
+      currentCard!["intervals_sec"] ?? [15, 30, 60, 120, 240],
+    );
+
     final intervalLabel = mode == "timer"
-        ? "Intervalo actual: ${intervals[cardState!["interval_index"]]}s"
-        : "Base: ${intervals[cardState!["interval_index"]]}s — Próximo si aciertas: ${intervals[(cardState!["interval_index"] + 1).clamp(0, intervals.length - 1)]}s";
+        ? "Intervalo actual: ${intervals[cardState!["interval_index"]]} s"
+        : "Próximo intervalo: ${intervals[(cardState!["interval_index"] + 1)
+            .clamp(0, intervals.length - 1)]} s";
 
     return Scaffold(
       backgroundColor: background,
       appBar: AppBar(
         backgroundColor: background,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: orange),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          "Spaced Retrieval",
-          style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black87),
+          "Recuperación Espaciada",
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.w800,
+            fontSize: 20,
+          ),
         ),
-        centerTitle: true,
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(intervalLabel,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 15)),
-            const SizedBox(height: 20),
+            // Subtexto con el intervalo
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                intervalLabel,
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
 
-            // --- Card principal ---
+            // --------- CARD PRINCIPAL ----------
             Expanded(
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.15),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: Center(
-                  child: mode == "question"
-                      ? Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              currentCard!["pregunta"] ?? "Sin pregunta", 
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            TextField(
-                              controller: answerCtrl,
-                              decoration: InputDecoration(
-                                hintText: "Escribe o di tu respuesta...",
-                                filled: true,
-                                fillColor: Colors.orange.shade50,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _isListening
-                                        ? Icons.stop
-                                        : Icons.mic_none_rounded,
-                                    color: _isListening
-                                        ? Colors.red
-                                        : Colors.grey.shade700,
-                                  ),
-                                  onPressed: () {
-                                    _isListening
-                                        ? _stopListening()
-                                        : _startListening();
-                                  },
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: handleSubmit,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: orange,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
-                              ),
-                              child: const Text(
-                                "Enviar",
-                                style: TextStyle(color: Colors.white),
-                              ),
-                            ),
-                            if (feedback.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 12),
-                                child: Text(
-                                  feedback,
-                                  style: TextStyle(
-                                    color: feedback.startsWith("✅")
-                                        ? Colors.green.shade700
-                                        : Colors.red.shade700,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        )
-                      : mode == "timer"
-                          ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  feedback,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 20,
-                                    color: feedback.startsWith("✅")
-                                        ? Colors.green.shade700
-                                        : Colors.red.shade700,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  "Repetiremos esta pregunta en $secondsLeft segundos",
-                                  style:
-                                      TextStyle(color: Colors.grey.shade600),
-                                ),
-                              ],
-                            )
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Text(
-                                  "🎉 ¡Completaste esta pregunta!",
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  "Has superado el último intervalo (240s).",
-                                  textAlign: TextAlign.center,
-                                  style:
-                                      TextStyle(color: Colors.grey.shade600),
-                                ),
-                                const SizedBox(height: 16),
-                                ElevatedButton(
-                                  onPressed: handleNextCard,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: orange,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 14, horizontal: 24),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
-                                  ),
-                                  child: const Text(
-                                    "Siguiente tarjeta",
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                              ],
-                            ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: _buildCardContent(),
+                  ),
                 ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  // ---------------------------------------
+  //       CONTENIDO SEGÚN EL MODO
+  // ---------------------------------------
+  Widget _buildCardContent() {
+    if (mode == "question") {
+      return Column(
+        key: const ValueKey("question"),
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            currentCard!["pregunta"] ?? "",
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 22),
+
+          // Input amigable
+          TextField(
+            controller: answerCtrl,
+            decoration: InputDecoration(
+              hintText: "Escribe o di tu respuesta...",
+              filled: true,
+              fillColor: const Color(0xFFFFE8DD),
+              contentPadding:
+                  const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(18),
+                borderSide: BorderSide.none,
+              ),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _isListening ? Icons.stop_rounded : Icons.mic_none_rounded,
+                  color: _isListening ? Colors.red : Colors.grey.shade700,
+                ),
+                onPressed: () {
+                  _isListening ? _stopListening() : _startListening();
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          ElevatedButton(
+            onPressed: handleSubmit,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: orange,
+              padding:
+                  const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+              elevation: 0,
+            ),
+            child: const Text(
+              "Enviar",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+
+          if (feedback.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              feedback,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: feedback.startsWith("✅")
+                    ? Colors.green.shade700
+                    : Colors.red.shade700,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    if (mode == "timer") {
+      return Column(
+        key: const ValueKey("timer"),
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            feedback,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 20,
+              color: feedback.startsWith("✅")
+                  ? Colors.green.shade700
+                  : Colors.red.shade700,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "Repetimos esta pregunta en",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            "$secondsLeft segundos...",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: orange,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // doneCard
+    return Column(
+      key: const ValueKey("doneCard"),
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text(
+          "🎉 ¡Completaste esta tarjeta!",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton(
+          onPressed: handleNextCard,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: orange,
+            padding:
+                const EdgeInsets.symmetric(vertical: 14, horizontal: 28),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+            ),
+            elevation: 0,
+          ),
+          child: const Text(
+            "Siguiente",
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

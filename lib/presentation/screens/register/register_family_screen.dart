@@ -32,7 +32,6 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
   bool _showConfirmation = false;
   String recognizedText = "";
 
-  // control de edición local
   int? editingIndex;
 
   @override
@@ -53,7 +52,8 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              "Por favor habilita el micrófono para usar reconocimiento de voz."),
+            "Por favor habilita el micrófono para usar reconocimiento de voz.",
+          ),
         ),
       );
     }
@@ -102,7 +102,9 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
     if (text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text("Por favor ingresa o graba información para procesar.")),
+          content:
+              Text("Por favor ingresa o graba información para procesar."),
+        ),
       );
       return;
     }
@@ -122,21 +124,23 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
         final familiaData = data["familia"] ?? [];
 
         setState(() {
-          familiares = (familiaData as List<dynamic>)
-              .map<Map<String, String>>((f) {
-            final Map<String, dynamic> item = f as Map<String, dynamic>;
-            return {
-              "nombre": item["nombre"]?.toString() ?? "",
-              "tipo_relacion": item["tipo_relacion"]?.toString() ?? "Otro",
-              "descripcion": item["descripcion"]?.toString() ?? "",
-            };
-          }).toList();
+          familiares = (familiaData as List<dynamic>).map<Map<String, String>>(
+            (f) {
+              final Map<String, dynamic> item = f as Map<String, dynamic>;
+              return {
+                "nombre": item["nombre"]?.toString() ?? "",
+                "tipo_relacion": item["tipo_relacion"]?.toString() ?? "Otro",
+                "descripcion": item["descripcion"]?.toString() ?? "",
+              };
+            },
+          ).toList();
           _showConfirmation = true;
           editingIndex = null;
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Información familiar completada con IA ✅")),
+          const SnackBar(
+              content: Text("Información familiar completada con IA ✅")),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -157,7 +161,8 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
     final registerVM = Provider.of<RegisterViewModel>(context, listen: false);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      // 🎨 Fondo suave como en RegisterPersonal
+      backgroundColor: const Color(0xFFFFF7F2),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -171,15 +176,17 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                      color: Colors.grey.shade800,
+                      color: Colors.grey.shade700,
                       onPressed: () => Navigator.pop(context),
                     ),
                     const Spacer(),
                     const Text(
                       'Información Familiar',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
+                        letterSpacing: 0.3,
+                        color: Colors.black87,
                       ),
                     ),
                     const Spacer(flex: 2),
@@ -190,27 +197,41 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                 // --- Icono central ---
                 Center(
                   child: Container(
-                    width: 100,
-                    height: 100,
+                    width: 90,
+                    height: 90,
                     decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
+                      color: const Color(0xFFE8EBF3),
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.family_restroom_rounded,
-                      color: Colors.orange.shade700,
-                      size: 55,
+                      color: Color(0xFFF48A63),
+                      size: 46,
                     ),
                   ),
                 ),
                 const SizedBox(height: 24),
 
-                // --- Sección IA ---
+                // --- Sección IA (tarjeta) ---
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade50.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -227,7 +248,11 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                       const Text(
                         'Pulsa para grabar o escribe un resumen sobre tus familiares para completar los campos de abajo.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14, color: Colors.black54),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black54,
+                          height: 1.3,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Row(
@@ -241,18 +266,19 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: _isListening
                                     ? Colors.redAccent
-                                    : Colors.orange.shade600,
+                                    : const Color(0xFFF48A63),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 20),
+                                elevation: 0,
                               ),
                               child: Icon(
                                 _isListening
                                     ? Icons.stop_rounded
                                     : Icons.mic_rounded,
-                                size: 28,
+                                size: 26,
                                 color: Colors.white,
                               ),
                             ),
@@ -267,9 +293,9 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                                 hintText:
                                     'O escribe aquí tu información familiar...',
                                 filled: true,
-                                fillColor: Colors.white,
+                                fillColor: const Color(0xFFF5F7FB),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(16),
                                   borderSide: BorderSide.none,
                                 ),
                               ),
@@ -284,11 +310,12 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                             : () => _processWithIA(
                                 _infoIA.text.trim(), registerVM.userId),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange.shade700,
+                          backgroundColor: const Color(0xFFF48A63),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                           ),
+                          elevation: 0,
                         ),
                         child: _isLoading
                             ? const SizedBox(
@@ -341,7 +368,7 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                       padding: EdgeInsets.symmetric(horizontal: 8),
                       child: Text(
                         'O rellena manualmente',
-                        style: TextStyle(color: Colors.black54),
+                        style: TextStyle(color: Colors.black54, fontSize: 13),
                       ),
                     ),
                     Expanded(child: Divider(thickness: 1)),
@@ -355,19 +382,26 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 40),
                     child: Column(
                       children: [
-                        Icon(Icons.group_outlined,
-                            size: 60, color: Colors.orange.shade300),
+                        Icon(
+                          Icons.group_outlined,
+                          size: 60,
+                          color: Colors.orange.shade300,
+                        ),
                         const SizedBox(height: 12),
                         const Text(
                           "Aún no has agregado familiares",
                           style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         const SizedBox(height: 6),
-                        Text(
+                        const Text(
                           "Puedes añadirlos manualmente o usar la IA para detectarlos.",
                           style: TextStyle(
-                              color: Colors.black54, fontSize: 14),
+                            color: Colors.black54,
+                            fontSize: 14,
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -388,16 +422,16 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.grey.withOpacity(0.08),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                           border: Border.all(
                             color: isEditing
                                 ? Colors.orange.shade200
                                 : Colors.grey.shade200,
-                            width: 1.3,
+                            width: 1.2,
                           ),
                         ),
                         child: Column(
@@ -409,11 +443,14 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                                   width: 48,
                                   height: 48,
                                   decoration: BoxDecoration(
-                                    color: Colors.orange.shade50,
+                                    color: const Color(0xFFE8EBF3),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.person_rounded,
-                                      color: Color(0xFFFF8A00), size: 26),
+                                  child: const Icon(
+                                    Icons.person_rounded,
+                                    color: Color(0xFFF48A63),
+                                    size: 24,
+                                  ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -434,7 +471,7 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                                         ? Icons.check_circle_rounded
                                         : Icons.edit_rounded,
                                     color: isEditing
-                                        ? Colors.orange
+                                        ? const Color(0xFFF48A63)
                                         : Colors.grey,
                                   ),
                                   onPressed: () {
@@ -444,8 +481,10 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                                   },
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete_outline,
-                                      color: Colors.redAccent),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.redAccent,
+                                  ),
                                   onPressed: () => _eliminarFamiliar(index),
                                 ),
                               ],
@@ -453,39 +492,58 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                             if (isEditing) ...[
                               const SizedBox(height: 12),
                               TextField(
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: "Nombre",
-                                  border: OutlineInputBorder(),
+                                  filled: true,
+                                  fillColor: const Color(0xFFE8EBF3),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
                                 ),
-                                controller:
-                                    TextEditingController(text: f["nombre"]),
+                                controller: TextEditingController(
+                                  text: f["nombre"],
+                                ),
                                 onChanged: (v) => f["nombre"] = v,
                               ),
                               const SizedBox(height: 10),
                               DropdownButtonFormField<String>(
                                 value: f["tipo_relacion"] ?? parentescos.first,
                                 items: parentescos
-                                    .map((p) => DropdownMenuItem(
-                                          value: p,
-                                          child: Text(p),
-                                        ))
+                                    .map(
+                                      (p) => DropdownMenuItem(
+                                        value: p,
+                                        child: Text(p),
+                                      ),
+                                    )
                                     .toList(),
                                 onChanged: (val) =>
                                     f["tipo_relacion"] = val ?? parentescos.first,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: "Parentesco",
-                                  border: OutlineInputBorder(),
+                                  filled: true,
+                                  fillColor: const Color(0xFFE8EBF3),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 10),
                               TextField(
                                 maxLines: 2,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: "Descripción (opcional)",
-                                  border: OutlineInputBorder(),
+                                  filled: true,
+                                  fillColor: const Color(0xFFE8EBF3),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
                                 ),
-                                controller:
-                                    TextEditingController(text: f["descripcion"]),
+                                controller: TextEditingController(
+                                  text: f["descripcion"],
+                                ),
                                 onChanged: (v) => f["descripcion"] = v,
                               ),
                             ],
@@ -501,22 +559,24 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                 Center(
                   child: ElevatedButton.icon(
                     onPressed: _agregarFamiliar,
-                    icon:
-                        const Icon(Icons.add_rounded, color: Colors.white),
+                    icon: const Icon(Icons.add_rounded, color: Colors.white),
                     label: const Text(
-                      'Agregar Familiar',
+                      'Agregar familiar',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF8A00),
+                      backgroundColor: const Color(0xFFF48A63),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        horizontal: 24,
+                        vertical: 14,
                       ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      elevation: 0,
                     ),
                   ),
                 ),
@@ -530,12 +590,12 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.grey.shade200,
+                          backgroundColor: const Color(0xFFE8EBF3),
                           side: BorderSide.none,
                           padding:
                               const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                           ),
                         ),
                         child: const Text(
@@ -552,16 +612,16 @@ class _RegisterFamilyScreenState extends State<RegisterFamilyScreen> {
                       child: ElevatedButton(
                         onPressed: () {
                           registerVM.updateFamilia(familiares: familiares);
-                          Navigator.pushNamed(
-                              context, '/register-routine');
+                          Navigator.pushNamed(context, '/register-routine');
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange.shade700,
+                          backgroundColor: const Color(0xFFF48A63),
                           padding:
                               const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                           ),
+                          elevation: 0,
                         ),
                         child: const Text(
                           'Siguiente',

@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
-import '../../../data/services/api_service.dart'; // 🔹 para llamar al backend
+import '../../../data/services/api_service.dart';
 
 class RegisterPersonalScreen extends StatefulWidget {
   const RegisterPersonalScreen({super.key});
@@ -24,7 +24,6 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
   final ApiService apiService = ApiService();
   bool _isLoading = false;
 
-  // === SPEECH TO TEXT ===
   late stt.SpeechToText _speech;
   bool _isListening = false;
   String recognizedText = "";
@@ -41,33 +40,33 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
   Future<void> _initSpeech() async {
     var status = await Permission.microphone.request();
     if (status.isGranted) {
-      await _speech.initialize(
-        onStatus: (val) => print('Speech status: $val'),
-        onError: (val) => print('Speech error: $val'),
-      );
+      await _speech.initialize();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content:
-                Text("Por favor habilita el micrófono para usar reconocimiento de voz.")),
+          content: Text(
+            "Por favor habilita el micrófono para usar reconocimiento de voz.",
+          ),
+        ),
       );
     }
   }
 
   void _startListening() async {
     bool available = await _speech.initialize();
-    if (available) {
-      setState(() => _isListening = true);
-      _speech.listen(
-        localeId: 'es_ES',
-        onResult: (result) {
-          setState(() {
-            recognizedText = result.recognizedWords;
-            _infoIA.text = recognizedText;
-          });
-        },
-      );
-    }
+    if (!available) return;
+
+    setState(() => _isListening = true);
+
+    _speech.listen(
+      localeId: 'es_ES',
+      onResult: (result) {
+        setState(() {
+          recognizedText = result.recognizedWords;
+          _infoIA.text = recognizedText;
+        });
+      },
+    );
   }
 
   void _stopListening() async {
@@ -93,7 +92,9 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
   Future<void> _processWithIA(String text, String userId) async {
     if (text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Por favor ingresa información para procesar.")),
+        const SnackBar(
+          content: Text("Por favor ingresa información para procesar."),
+        ),
       );
       return;
     }
@@ -111,8 +112,8 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
 
       if (response.statusCode == 200) {
         final data = response.data["structured_profile"] ?? {};
-
         final personal = data["personal"] ?? {};
+
         setState(() {
           _nombreCtrl.text = personal["nombre"] ?? "";
           _fechaCtrl.text = personal["fecha_nacimiento"] ?? "";
@@ -142,7 +143,7 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
     final registerVM = Provider.of<RegisterViewModel>(context, listen: false);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFFF7F2), 
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -151,20 +152,21 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // --- Barra superior ---
                 Row(
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                      color: Colors.grey.shade800,
+                      color: Colors.grey.shade700,
                       onPressed: () => Navigator.pop(context),
                     ),
                     const Spacer(),
                     const Text(
                       'Datos Personales',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
+                        letterSpacing: 0.3,
+                        color: Colors.black87,
                       ),
                     ),
                     const Spacer(flex: 2),
@@ -175,27 +177,41 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
                 // --- Icono central ---
                 Center(
                   child: Container(
-                    width: 100,
-                    height: 100,
+                    width: 90,
+                    height: 90,
                     decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
+                      color: const Color(0xFFE8EBF3),
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.person_outline_rounded,
-                      color: Colors.orange.shade700,
-                      size: 55,
+                      color: Color(0xFFF48A63),
+                      size: 46,
                     ),
                   ),
                 ),
                 const SizedBox(height: 24),
 
-                // --- Sección IA ---
+                // --- Tarjeta IA, más "card" y suave ---
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade50.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -205,58 +221,58 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          fontSize: 17,
                         ),
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Pulsa para grabar o escribe un breve resumen sobre ti para completar los campos de abajo.',
+                        'Pulsa el botón o escribe un breve resumen sobre ti. La IA completará los campos de abajo.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14, color: Colors.black54),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black54,
+                          height: 1.3,
+                        ),
                       ),
                       const SizedBox(height: 16),
 
-                      // --- Mic y texto ---
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            flex: 2,
-                            child: ElevatedButton(
-                              onPressed: _isListening
-                                  ? _stopListening
-                                  : _startListening,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _isListening
-                                    ? Colors.redAccent
-                                    : Colors.orange.shade600,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 20),
+                          // --- Botón mic ---
+                          ElevatedButton(
+                            onPressed:
+                                _isListening ? _stopListening : _startListening,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _isListening
+                                  ? Colors.redAccent
+                                  : const Color(0xFFF48A63),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                              child: Icon(
-                                _isListening
-                                    ? Icons.stop_rounded
-                                    : Icons.mic_rounded,
-                                size: 28,
-                                color: Colors.white,
-                              ),
+                              padding: const EdgeInsets.all(18),
+                              elevation: 0,
+                            ),
+                            child: Icon(
+                              _isListening
+                                  ? Icons.stop_rounded
+                                  : Icons.mic_rounded,
+                              size: 26,
+                              color: Colors.white,
                             ),
                           ),
                           const SizedBox(width: 12),
+                          // --- Campo texto IA ---
                           Expanded(
-                            flex: 5,
                             child: TextFormField(
                               controller: _infoIA,
                               maxLines: 3,
                               decoration: InputDecoration(
                                 hintText: 'O escribe aquí tu información...',
                                 filled: true,
-                                fillColor: Colors.white,
+                                fillColor: const Color(0xFFF5F7FB),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(16),
                                   borderSide: BorderSide.none,
                                 ),
                               ),
@@ -270,14 +286,17 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
                       ElevatedButton(
                         onPressed: _isLoading
                             ? null
-                            : () => _processWithIA(_infoIA.text.trim(), registerVM.userId),
-
+                            : () => _processWithIA(
+                                  _infoIA.text.trim(),
+                                  registerVM.userId,
+                                ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange.shade700,
+                          backgroundColor: const Color(0xFFF48A63),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                           ),
+                          elevation: 0,
                         ),
                         child: _isLoading
                             ? const SizedBox(
@@ -307,8 +326,13 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
                     Expanded(child: Divider(thickness: 1)),
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('O rellena manualmente',
-                          style: TextStyle(color: Colors.black54)),
+                      child: Text(
+                        'O rellena manualmente',
+                        style: TextStyle(
+                          color: Colors.black54,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
                     Expanded(child: Divider(thickness: 1)),
                   ],
@@ -354,11 +378,11 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.grey.shade200,
+                          backgroundColor: const Color(0xFFE8EBF3),
                           side: BorderSide.none,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                           ),
                         ),
                         child: const Text(
@@ -385,11 +409,12 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange.shade700,
+                          backgroundColor: const Color(0xFFF48A63),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                           ),
+                          elevation: 0,
                         ),
                         child: const Text(
                           'Siguiente',
@@ -423,9 +448,9 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
           labelText: label,
           hintText: placeholder,
           filled: true,
-          fillColor: Colors.orange.shade50,
+          fillColor: const Color(0xFFE8EBF3),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
         ),
@@ -451,10 +476,13 @@ class _RegisterPersonalScreenState extends State<RegisterPersonalScreen> {
           labelText: label,
           hintText: placeholder,
           filled: true,
-          fillColor: Colors.orange.shade50,
-          suffixIcon: Icon(Icons.calendar_today, color: Colors.orange.shade700),
+          fillColor: const Color(0xFFE8EBF3),
+          suffixIcon: const Icon(
+            Icons.calendar_today,
+            color: Color(0xFFF48A63),
+          ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
         ),

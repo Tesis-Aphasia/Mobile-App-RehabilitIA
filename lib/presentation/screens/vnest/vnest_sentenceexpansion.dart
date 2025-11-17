@@ -38,8 +38,8 @@ Widget buildColoredSentence({
   String? correctPorque,
   String? correctCuando,
   required Color verbColor,
-  double fontSize = 16,       
-  double lineHeight = 1.3,    
+  double fontSize = 16,
+  double lineHeight = 1.3,
 }) {
   final whereCorrect = where != null && where == correctDonde;
   final whyCorrect = why != null && why == correctPorque;
@@ -82,17 +82,10 @@ Widget buildColoredSentence({
 /// =============================
 ///  Helpers para priorizar PERSONALIZADO
 /// =============================
-/// Convierten dinámicos a Map/List de forma segura
 Map<String, dynamic> _asMap(dynamic v) =>
     (v is Map) ? Map<String, dynamic>.from(v) : <String, dynamic>{};
 List _asList(dynamic v) => (v is List) ? v : const [];
 
-/// Devuelve el bloque de expansiones completo a usar,
-/// priorizando en este orden:
-/// 1) ex['expansiones'] (plano, personalizado)
-/// 2) ex['personalizado'] (plano con claves: donde/por_que/cuando)
-/// 3) ex['paresPersonalizados'] → match por sujeto/objeto, si no el primero
-/// 4) ex['pares'] (base) → match por sujeto/objeto, si no el primero
 Map<String, dynamic> _pickExpansiones(
   Map<String, dynamic> ex,
   String who,
@@ -192,75 +185,127 @@ class VnestStepScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const background = Color(0xFFFFF7F2);
+
     final selectedPair = pairs.firstWhere(
       (p) => p.opcion == selectedValue,
       orElse: () => const ExpansionPair("", ""),
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFEF9F4),
+      backgroundColor: background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFEF9F4),
+        backgroundColor: background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: accent),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           "Expansión de Oraciones",
-          style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black87),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Colors.black87,
+            fontSize: 20,
+          ),
         ),
         centerTitle: true,
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
           child: Column(
             children: [
+              // Paso
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text("Paso $step de 5",
-                    style: TextStyle(color: Colors.grey.shade800, fontSize: 14)),
+                child: Text(
+                  "Paso $step de 5",
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
               const SizedBox(height: 6),
-              LinearProgressIndicator(
-                value: step / 5,
-                color: accent,
-                backgroundColor: Colors.grey.shade200,
-                minHeight: 6,
-                borderRadius: BorderRadius.circular(8),
+
+              // Barra de progreso (similar estilo)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: step / 5,
+                  color: accent,
+                  backgroundColor: Colors.grey.shade300.withOpacity(0.4),
+                  minHeight: 8,
+                ),
               ),
-              const SizedBox(height: 16),
+
+              const SizedBox(height: 18),
+
+              // Tarjetas ¿Quién? Verbo ¿Qué?
               _headerCards(accent),
+
               const SizedBox(height: 24),
+
+              // Contenido scrollable
               Expanded(
                 child: ListView(
                   children: [
                     _questionSection(selectedPair),
                     if (selectedPair.explicacion.isNotEmpty)
                       Container(
-                        margin: const EdgeInsets.only(top: 6, bottom: 16),
-                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(top: 8, bottom: 18),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.orange.shade200),
+                          color: Colors.grey.shade300.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade300.withOpacity(0.4)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                        child: Text(selectedPair.explicacion,
-                            style: const TextStyle(fontSize: 14)),
+                        child: Text(
+                          selectedPair.explicacion,
+                          style: const TextStyle(fontSize: 15, height: 1.35),
+                        ),
                       ),
                   ],
                 ),
               ),
+
+              // Feedback de validación
               if (feedback != null)
-                Text(feedback!,
-                    style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    feedback!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+
+              // Oración construida
               Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 6),
-                padding: const EdgeInsets.all(16), // un poco más de padding
+                margin: const EdgeInsets.only(top: 6, bottom: 10),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  color: const Color(0xFFFFE8DD),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: buildColoredSentence(
                   who: who,
@@ -273,10 +318,12 @@ class VnestStepScreen extends StatelessWidget {
                   correctDonde: correctDonde,
                   correctPorque: correctPorque,
                   correctCuando: correctCuando,
-                  fontSize: 16,     // 👈 más grande
-                  lineHeight: 1.3,  // 👈 legible
+                  fontSize: 16,
+                  lineHeight: 1.3,
                 ),
               ),
+
+              // Botones Anterior / Siguiente
               Row(
                 children: [
                   Expanded(
@@ -287,9 +334,14 @@ class VnestStepScreen extends StatelessWidget {
                         foregroundColor: Colors.black87,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        elevation: 0,
                       ),
-                      child: const Text("Anterior"),
+                      child: const Text(
+                        "Anterior",
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -298,12 +350,20 @@ class VnestStepScreen extends StatelessWidget {
                       onPressed: onNext,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: accent,
+                        disabledBackgroundColor: accent.withOpacity(0.4),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        elevation: 0,
                       ),
-                      child:
-                          const Text("Siguiente", style: TextStyle(color: Colors.white)),
+                      child: const Text(
+                        "Siguiente",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -317,30 +377,47 @@ class VnestStepScreen extends StatelessWidget {
 
   Widget _headerCards(Color accent) {
     final verboConjugado = conjugatePresentIndicative(who, verbo);
+
     Widget _wordCard(String label, String text, {bool isVerb = false}) {
       return Expanded(
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 6),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
           decoration: BoxDecoration(
-            color: isVerb ? accent.withOpacity(0.1) : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: isVerb ? accent : Colors.grey.shade300),
+            color: isVerb ? accent.withOpacity(0.12) : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isVerb ? accent : Colors.grey.shade300,
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             children: [
-              Text(label,
-                  style: TextStyle(
-                      color: isVerb ? accent : Colors.black54,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold)),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isVerb ? accent : Colors.black54,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(text,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: isVerb ? accent : Colors.black87,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14)),
+              Text(
+                text,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isVerb ? accent : Colors.black87,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                ),
+              ),
             ],
           ),
         ),
@@ -348,7 +425,6 @@ class VnestStepScreen extends StatelessWidget {
     }
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         _wordCard("¿Quién?", capitalize(who)),
         _wordCard("Verbo", verboConjugado, isVerb: true),
@@ -361,30 +437,40 @@ class VnestStepScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Título + icono
         Row(
           children: [
             CircleAvatar(
-              radius: 16,
-              backgroundColor: accent.withOpacity(0.1),
-              child: Icon(icon, color: accent, size: 18),
+              radius: 18,
+              backgroundColor: accent.withOpacity(0.15),
+              child: Icon(icon, color: accent, size: 20),
             ),
-            const SizedBox(width: 8),
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.w700, color: Colors.black87)),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 21,
+                fontWeight: FontWeight.w800,
+                color: Colors.black87,
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
+
+        // Opciones
         ...pairs.map((p) {
           final isSelected = selectedValue == p.opcion;
           final isCorrect = isSelected && p.opcion == correctValue;
           final isWrong = isSelected && p.opcion != correctValue;
+
           Color borderColor = Colors.grey.shade300;
           Color bgColor = Colors.white;
           Color textColor = Colors.black87;
+
           if (isSelected) {
-            borderColor = accent.withOpacity(0.5);
-            bgColor = accent.withOpacity(0.05);
+            borderColor = accent;
+            bgColor = const Color(0xFFFFE8DD);
           }
           if (isCorrect) {
             borderColor = Colors.green.shade600;
@@ -395,6 +481,7 @@ class VnestStepScreen extends StatelessWidget {
             bgColor = Colors.red.shade50;
             textColor = Colors.red.shade900;
           }
+
           return GestureDetector(
             onTap: () => onSelect(p.opcion),
             child: Container(
@@ -402,23 +489,33 @@ class VnestStepScreen extends StatelessWidget {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: bgColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: borderColor, width: 2),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: borderColor, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(p.opcion,
-                        style: TextStyle(
-                            color: textColor,
-                            fontWeight:
-                                isSelected ? FontWeight.w700 : FontWeight.w500,
-                            fontSize: 15)),
+                    child: Text(
+                      p.opcion,
+                      style: TextStyle(
+                        color: textColor,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        fontSize: 15,
+                        height: 1.3,
+                      ),
+                    ),
                   ),
                   if (isCorrect)
-                    const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                    const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
                   if (isWrong)
-                    const Icon(Icons.cancel, color: Colors.red, size: 20),
+                    const Icon(Icons.cancel_rounded, color: Colors.red, size: 20),
                 ],
               ),
             ),
@@ -441,7 +538,9 @@ class VnestWhereScreen extends StatefulWidget {
 }
 
 class _VnestWhereScreenState extends State<VnestWhereScreen> {
-  final orange = const Color(0xFFFF8A00);
+  // 🎨 misma paleta que VnestSelectContextScreen
+  final orange = const Color(0xFFF48A63);
+
   List<ExpansionPair> dondePairs = [];
   String? correctDonde;
   String? selectedWhere;
@@ -455,14 +554,14 @@ class _VnestWhereScreenState extends State<VnestWhereScreen> {
     super.initState();
     final ex = Map<String, dynamic>.from(widget.data);
     verbo = ex['verbo'] ?? '';
-    who   = ex['who']   ?? '';
-    what  = ex['what']  ?? '';
+    who = ex['who'] ?? '';
+    what = ex['what'] ?? '';
 
     final expansiones = _pickExpansiones(ex, who, what);
     final donde = _asMap(expansiones['donde']);
 
     correctDonde = donde['opcion_correcta'];
-    dondePairs   = _makePairsFrom(donde);
+    dondePairs = _makePairsFrom(donde);
   }
 
   void handleNext() {
@@ -521,7 +620,8 @@ class VnestWhyScreen extends StatefulWidget {
 }
 
 class _VnestWhyScreenState extends State<VnestWhyScreen> {
-  final orange = const Color(0xFFFF8A00);
+  final orange = const Color(0xFFF48A63);
+
   List<ExpansionPair> porquePairs = [];
   String? correctPorque;
   String? selectedWhy;
@@ -537,17 +637,17 @@ class _VnestWhyScreenState extends State<VnestWhyScreen> {
     super.initState();
     final ex = Map<String, dynamic>.from(widget.data);
     verbo = ex['verbo'] ?? '';
-    who   = ex['who']   ?? '';
-    what  = ex['what']  ?? '';
+    who = ex['who'] ?? '';
+    what = ex['what'] ?? '';
 
     selectedWhere = ex['where'];
-    correctDonde  = ex['correctDonde'];
+    correctDonde = ex['correctDonde'];
 
     final expansiones = _pickExpansiones(ex, who, what);
     final porque = _asMap(expansiones['por_que']); // importante: 'por_que'
 
     correctPorque = porque['opcion_correcta'];
-    porquePairs   = _makePairsFrom(porque);
+    porquePairs = _makePairsFrom(porque);
   }
 
   void handleNext() {
@@ -610,7 +710,8 @@ class VnestWhenScreen extends StatefulWidget {
 }
 
 class _VnestWhenScreenState extends State<VnestWhenScreen> {
-  final orange = const Color(0xFFFF8A00);
+  final orange = const Color(0xFFF48A63);
+
   List<ExpansionPair> cuandoPairs = [];
   String? correctCuando;
   String? selectedWhen;
@@ -628,19 +729,19 @@ class _VnestWhenScreenState extends State<VnestWhenScreen> {
     super.initState();
     final ex = Map<String, dynamic>.from(widget.data);
     verbo = ex['verbo'] ?? '';
-    who   = ex['who']   ?? '';
-    what  = ex['what']  ?? '';
+    who = ex['who'] ?? '';
+    what = ex['what'] ?? '';
 
     selectedWhere = ex['where'];
-    selectedWhy   = ex['why'];
-    correctDonde  = ex['correctDonde'];
+    selectedWhy = ex['why'];
+    correctDonde = ex['correctDonde'];
     correctPorque = ex['correctPorque'];
 
     final expansiones = _pickExpansiones(ex, who, what);
     final cuando = _asMap(expansiones['cuando']);
 
     correctCuando = cuando['opcion_correcta'];
-    cuandoPairs   = _makePairsFrom(cuando);
+    cuandoPairs = _makePairsFrom(cuando);
   }
 
   void handleNext() {
@@ -650,8 +751,8 @@ class _VnestWhenScreenState extends State<VnestWhenScreen> {
     }
 
     final whereCorrect = selectedWhere == correctDonde;
-    final whyCorrect   = selectedWhy == correctPorque;
-    final whenCorrect  = selectedWhen == correctCuando;
+    final whyCorrect = selectedWhy == correctPorque;
+    final whenCorrect = selectedWhen == correctCuando;
 
     if (!whereCorrect || !whyCorrect || !whenCorrect) {
       setState(() {

@@ -14,8 +14,9 @@ class VnestSelectVerbScreen extends StatefulWidget {
 }
 
 class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
-  final background = const Color(0xFFFEF9F4);
-  final orange = const Color(0xFFFF8A00);
+  // 🎨 Colores consistentes con Rehabilita
+  final background = const Color(0xFFFFF7F2);
+  final orange = const Color(0xFFF48A63);
 
   bool loading = false;
   bool loadingExercise = false;
@@ -161,7 +162,8 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
       final asignadosRef = pacienteRef.collection("ejercicios_asignados");
 
       // ========== Helpers ==========
-      Future<bool> _isPersonalizedForVnestDoc(DocumentSnapshot<Map<String, dynamic>> vnDoc) async {
+      Future<bool> _isPersonalizedForVnestDoc(
+          DocumentSnapshot<Map<String, dynamic>> vnDoc) async {
         final data = vnDoc.data() ?? {};
         final generalId = (data['id_ejercicio_general'] ?? '') as String;
         if (generalId.isEmpty) return (data['personalizado'] ?? false) == true;
@@ -187,7 +189,6 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
       final asignados = <Map<String, dynamic>>[];
       for (final d in asignadosSnap.docs) {
         final m = d.data();
-        // Join con VNEST para filtrar por verbo
         final exId = (m['id_ejercicio'] ?? '').toString();
         if (exId.isEmpty) continue;
         final vnDoc = await fs.collection('ejercicios_VNEST').doc(exId).get();
@@ -195,7 +196,6 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         final vn = vnDoc.data() ?? {};
         if ((vn['verbo'] ?? '') != verbo) continue;
 
-        // Resolver personalizado (preferir flag en asignado; si no, mirar ejercicio base)
         bool personalizado = (m['personalizado'] ?? false) == true;
         if (!personalizado) {
           personalizado = await _isPersonalizedForVnestDoc(vnDoc);
@@ -243,11 +243,11 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         throw Exception("No se encontró ejercicio de '$verbo' en este contexto.");
       }
 
-      final asignadosIds = asignadosSnap.docs.map((d) => d.data()['id_ejercicio'].toString()).toSet();
-      // VNEST no asignados aún
-      final noAsignadosDocs = allVnestSnap.docs.where((d) => !asignadosIds.contains(d.id)).toList();
+      final asignadosIds =
+          asignadosSnap.docs.map((d) => d.data()['id_ejercicio'].toString()).toSet();
+      final noAsignadosDocs =
+          allVnestSnap.docs.where((d) => !asignadosIds.contains(d.id)).toList();
 
-      // Helper para etiquetar personalizados
       Future<List<DocumentSnapshot<Map<String, dynamic>>>> _sortPersonalizedFirst(
         List<DocumentSnapshot<Map<String, dynamic>>> docs,
       ) async {
@@ -263,32 +263,31 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
           final bp = (b['personalizado'] == true) ? 0 : 1;
           return ap - bp;
         });
-        return withFlag.map((e) => e['doc'] as DocumentSnapshot<Map<String, dynamic>>).toList();
+        return withFlag
+            .map((e) => e['doc'] as DocumentSnapshot<Map<String, dynamic>>)
+            .toList();
       }
 
-      // 4) Si hay no asignados → elegir personalizados primero
+      // 4) Si hay no asignados → personalizados primero
       if (noAsignadosDocs.isNotEmpty) {
         final ordered = await _sortPersonalizedFirst(noAsignadosDocs);
-        // dentro de cada bucket (personalizado/público) puedes aleatorizar si quieres:
-        // ordered.shuffle();  // si prefieres aleatorio puro tras priorizar personalizados
 
         final chosenDoc = ordered.first;
         final chosenData = chosenDoc.data() ?? {};
         final idEjercicio = chosenDoc.id;
         final contexto = chosenData['contexto'] ?? widget.vnestContext;
 
-        // calcular prioridad = max + 1
         final allAsg = await asignadosRef.get();
         final prioridades = allAsg.docs
             .map((d) => d.data()['prioridad'])
             .whereType<num>()
             .map((n) => n.toInt())
             .toList();
-        final nextPriority = prioridades.isEmpty ? 1 : (prioridades.reduce((a, b) => a > b ? a : b) + 1);
+        final nextPriority =
+            prioridades.isEmpty ? 1 : (prioridades.reduce((a, b) => a > b ? a : b) + 1);
 
         final personalizedFlag = await _isPersonalizedForVnestDoc(chosenDoc);
 
-        // Asignar si no existe
         final existe = await asignadosRef.doc(idEjercicio).get();
         if (!existe.exists) {
           await asignadosRef.doc(idEjercicio).set({
@@ -308,12 +307,13 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
           ...chosenData,
           'context': widget.vnestContext,
           'verbo': verbo,
-          'id_ejercicio_general': chosenData['id_ejercicio_general'] ?? idEjercicio,
+          'id_ejercicio_general':
+              chosenData['id_ejercicio_general'] ?? idEjercicio,
         });
         return;
       }
 
-      // 5) Si no hay nuevos → elegir completado más antiguo (personalizado primero)
+      // 5) Completado más antiguo (personalizado primero)
       final completados = asignados.where((e) => e['estado'] == 'completado').toList()
         ..sort((a, b) {
           final ap = (a['_personalizado'] == true) ? 0 : 1;
@@ -321,11 +321,9 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
           if (ap != bp) return ap - bp;
           final ta = a['ultima_fecha_realizado'];
           final tb = b['ultima_fecha_realizado'];
-          // nulls al final
           if (ta == null && tb == null) return 0;
           if (ta == null) return 1;
           if (tb == null) return -1;
-          // más antiguo primero
           return (ta as Timestamp).compareTo(tb as Timestamp);
         });
 
@@ -339,13 +337,14 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
             ...vn,
             'context': widget.vnestContext,
             'verbo': verbo,
-            'id_ejercicio_general': vn['id_ejercicio_general'] ?? oldVnDoc.id,
+            'id_ejercicio_general':
+                vn['id_ejercicio_general'] ?? oldVnDoc.id,
           });
           return;
         }
       }
 
-      // 6) Fallback: abrir cualquiera (no debería ocurrir si hay docs)
+      // 6) Fallback
       final fallback = allVnestSnap.docs.first;
       final fb = fallback.data() ?? {};
       Navigator.pushNamed(context, '/vnest-action', arguments: {
@@ -361,17 +360,15 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
     }
   }
 
-
-
-
   // ============================
   // 🔹 INTERFAZ
   // ============================
   @override
   Widget build(BuildContext context) {
     final isLoading = loading || loadingExercise;
-    final loadingText =
-        loading ? "Cargando verbos…" : (loadingExercise ? "Abriendo ejercicio…" : "");
+    final loadingText = loading
+        ? "Cargando verbos…"
+        : (loadingExercise ? "Abriendo ejercicio…" : "");
 
     return Scaffold(
       backgroundColor: background,
@@ -384,7 +381,11 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         ),
         title: const Text(
           "Selecciona un verbo",
-          style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black87),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Colors.black87,
+            fontSize: 20,
+          ),
         ),
         centerTitle: true,
       ),
@@ -396,10 +397,37 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      "Contexto: ${widget.vnestContext}",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Elige un verbo para practicar oraciones con la terapia VNeST.",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     if (error != null) _buildError(),
                     Expanded(
                       child: verbs.isEmpty
-                          ? const Center(child: Text("No hay verbos disponibles"))
+                          ? Center(
+                              child: Text(
+                                "No hay verbos disponibles para este contexto.",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey.shade700,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            )
                           : ListView.builder(
                               itemCount: verbs.length,
                               itemBuilder: (context, index) =>
@@ -417,11 +445,18 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: orange, strokeWidth: 4),
-            const SizedBox(height: 20),
+            CircularProgressIndicator(
+              color: orange,
+              strokeWidth: 4,
+            ),
+            const SizedBox(height: 16),
             Text(
               text,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
             ),
           ],
         ),
@@ -432,7 +467,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.red.shade50,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.red.shade200),
         ),
         child: Column(
@@ -440,16 +475,31 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
           children: [
             Text(
               error ?? "Error cargando verbos",
-              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade600,
-                foregroundColor: Colors.white,
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: orange,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+                onPressed: fetchVerbs,
+                child: const Text(
+                  "Reintentar",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
-              onPressed: fetchVerbs,
-              child: const Text("Reintentar"),
             ),
           ],
         ),
@@ -468,58 +518,59 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         setState(() => selectedVerb = verbo);
         await openExercise(verbo);
       },
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
+        margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? orange.withOpacity(0.1)
+              ? const Color(0xFFFFE8DD)
               : highlight
-                  ? Colors.yellow.shade50
+                  ? const Color(0xFFFFF4D2)
                   : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isSelected
                 ? orange
                 : highlight
                     ? Colors.amber
                     : Colors.grey.shade300,
-            width: 2,
+            width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.black.withOpacity(0.04),
               blurRadius: 8,
-              offset: const Offset(0, 3),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 color: highlight
                     ? Colors.amber.withOpacity(0.15)
-                    : orange.withOpacity(0.1),
+                    : const Color(0xFFFFE8DD),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 highlight ? Icons.lightbulb_rounded : Icons.play_arrow_rounded,
                 color: highlight ? Colors.amber.shade700 : orange,
-                size: highlight ? 28 : 30,
+                size: highlight ? 26 : 28,
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Text(
                 verbo,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: highlight ? Colors.amber.shade800 : Colors.black87,
+                  color:
+                      highlight ? Colors.amber.shade800 : Colors.black87,
                 ),
               ),
             ),

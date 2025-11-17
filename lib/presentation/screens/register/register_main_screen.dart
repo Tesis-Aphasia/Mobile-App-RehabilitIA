@@ -21,25 +21,19 @@ class _RegisterMainScreenState extends State<RegisterMainScreen> {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 20, bottom: 40),
-                child: Center(
-                  child: Text(
-                    '🧠 Rehabilita',
-                    style: TextStyle(
-                      fontFamily: 'Poppins',
-                      fontWeight: FontWeight.w600,
-                      fontSize: 26,
-                      color: Colors.orange.shade700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
+              const SizedBox(height: 30),
+
+              // ---------------- LOGO (80px) ----------------
+              Image.asset(
+                'icons/brain_logo.png',
+                height: 80,
               ),
+
+              const SizedBox(height: 24),
+
               Expanded(
                 child: widget.showSuccess
                     ? _buildSuccessContent(context)
@@ -53,7 +47,7 @@ class _RegisterMainScreenState extends State<RegisterMainScreen> {
   }
 
   // ===========================================================
-  //              REGISTRO CON EMAIL Y CONTRASEÑA
+  //                   REGISTRO (INTRO)
   // ===========================================================
   Widget _buildIntroContent(BuildContext context) {
     final registerVM = Provider.of<RegisterViewModel>(context, listen: false);
@@ -66,22 +60,25 @@ class _RegisterMainScreenState extends State<RegisterMainScreen> {
           'Registro de paciente',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 24,
+            fontSize: 26,
             fontWeight: FontWeight.bold,
+            color: Colors.black87,
           ),
         ),
         const SizedBox(height: 12),
+
         Text(
           'Completa tu correo y contraseña para continuar.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 16,
-            color: Colors.grey.shade600,
+            color: Colors.grey,
           ),
         ),
+
         const SizedBox(height: 40),
 
-        // --- Campo de correo ---
+        // ---------------- CAMPO EMAIL ----------------
         TextField(
           controller: _emailCtrl,
           keyboardType: TextInputType.emailAddress,
@@ -89,16 +86,19 @@ class _RegisterMainScreenState extends State<RegisterMainScreen> {
             labelText: 'Correo electrónico',
             hintText: 'ejemplo@correo.com',
             filled: true,
-            fillColor: Colors.orange.shade50,
+            fillColor: const Color(0xFFE8EBF3),
+            labelStyle: TextStyle(color: Colors.grey.shade700),
+            hintStyle: TextStyle(color: Colors.grey.shade500),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
             ),
           ),
         ),
+
         const SizedBox(height: 16),
 
-        // --- Campo de contraseña ---
+        // ---------------- CAMPO CONTRASEÑA ----------------
         TextField(
           controller: _passwordCtrl,
           obscureText: !_showPassword,
@@ -106,15 +106,17 @@ class _RegisterMainScreenState extends State<RegisterMainScreen> {
             labelText: 'Contraseña',
             hintText: 'Mínimo 6 caracteres',
             filled: true,
-            fillColor: Colors.orange.shade50,
+            fillColor: const Color(0xFFE8EBF3),
+            labelStyle: TextStyle(color: Colors.grey.shade700),
+            hintStyle: TextStyle(color: Colors.grey.shade500),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
             ),
             suffixIcon: IconButton(
               icon: Icon(
                 _showPassword ? Icons.visibility_off : Icons.visibility,
-                color: Colors.orange.shade700,
+                color: const Color(0xFFF48A63),
               ),
               onPressed: () {
                 setState(() => _showPassword = !_showPassword);
@@ -122,59 +124,61 @@ class _RegisterMainScreenState extends State<RegisterMainScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 24),
 
-        // --- Botón principal ---
-        ElevatedButton(
-          onPressed: () {
-            final email = _emailCtrl.text.trim();
-            final password = _passwordCtrl.text.trim();
+        const SizedBox(height: 28),
 
-            if (email.isEmpty || !emailRegex.hasMatch(email)) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Por favor ingresa un correo válido.')),
-              );
-              return;
-            }
-            if (password.length < 6) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres.')),
-              );
-              return;
-            }
+        // ---------------- BOTÓN CONTINUAR ----------------
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () {
+              final email = _emailCtrl.text.trim();
+              final password = _passwordCtrl.text.trim();
 
-            // ✅ Guardar datos en el ViewModel
-            registerVM.setAuthData(email: email, password: password);
+              if (email.isEmpty || !emailRegex.hasMatch(email)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Por favor ingresa un correo válido.')),
+                );
+                return;
+              }
+              if (password.length < 6) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('La contraseña debe tener al menos 6 caracteres.')),
+                );
+                return;
+              }
 
-            // Ir a la pantalla de datos personales
-            Navigator.pushNamed(context, '/register-personal');
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.orange.shade700,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              registerVM.setAuthData(email: email, password: password);
+              Navigator.pushNamed(context, '/register-personal');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF48A63),
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              elevation: 0,
             ),
-          ),
-          child: const Text(
-            'Continuar',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+            child: const Text(
+              'Continuar',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 16),
 
-        // --- Botón secundario ---
+        const SizedBox(height: 10),
+
+        // ---------------- BOTÓN CANCELAR ----------------
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(
+          child: const Text(
             'Cancelar',
             style: TextStyle(
-              color: Colors.orange.shade600,
+              color: Color(0xFFF48A63),
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -185,7 +189,7 @@ class _RegisterMainScreenState extends State<RegisterMainScreen> {
   }
 
   // ===========================================================
-  //               CONFIRMACIÓN DE REGISTRO EXITOSO
+  //                REGISTRO EXITOSO
   // ===========================================================
   Widget _buildSuccessContent(BuildContext context) {
     return Column(
@@ -195,53 +199,61 @@ class _RegisterMainScreenState extends State<RegisterMainScreen> {
           width: 100,
           height: 100,
           decoration: BoxDecoration(
-            color: Colors.orange.shade50,
+            color: const Color(0xFFE8EBF3),
             shape: BoxShape.circle,
           ),
-          child: Icon(
+          child: const Icon(
             Icons.check_rounded,
-            color: Colors.orange.shade700,
+            color: Color(0xFFF48A63),
             size: 60,
           ),
         ),
         const SizedBox(height: 24),
+
         const Text(
           '¡Registro completado!',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 24,
+            fontSize: 26,
             fontWeight: FontWeight.bold,
           ),
         ),
+
         const SizedBox(height: 8),
+
         Text(
           'Tu cuenta ha sido creada con éxito.\nYa puedes comenzar tus ejercicios.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 16,
-            color: Colors.grey.shade600,
+            color: Colors.grey,
             height: 1.4,
           ),
         ),
+
         const SizedBox(height: 40),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.pushReplacementNamed(context, '/menu');
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.orange.shade700,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () {
+              Navigator.pushReplacementNamed(context, '/menu');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF48A63),
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              elevation: 0,
             ),
-          ),
-          child: const Text(
-            'Ir a ejercicios',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+            child: const Text(
+              'Ir a ejercicios',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ),

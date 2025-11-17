@@ -10,8 +10,9 @@ class VnestSelectContextScreen extends StatefulWidget {
 }
 
 class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
-  final background = const Color(0xFFFEF9F4);
-  final orange = const Color(0xFFFF8A00);
+  // 🎨 Mismos colores que el resto de la app
+  final background = const Color(0xFFFFF7F2);
+  final orange = const Color(0xFFF48A63);
 
   String? selectedContext;
   String customContext = "";
@@ -27,7 +28,10 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
 
   /// 🔥 Trae los contextos desde Firebase
   Future<void> fetchContextos() async {
-    setState(() => loading = true);
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final snapshot =
           await FirebaseFirestore.instance.collection('contextos').get();
@@ -58,7 +62,6 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
         selectedContext == "custom" ? customContext.trim() : selectedContext;
     if (selected == null || selected.isEmpty) return;
 
-    // 🔹 En lugar de llamar al endpoint, vamos a la pantalla de verbos
     Navigator.pushNamed(
       context,
       '/vnest-verb',
@@ -81,7 +84,11 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
         ),
         title: const Text(
           "Selecciona un contexto",
-          style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black87),
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Colors.black87,
+            fontSize: 20,
+          ),
         ),
         centerTitle: true,
       ),
@@ -93,10 +100,29 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Descripción suave arriba
+                    Text(
+                      "Elige un contexto para practicar!",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     if (error != null) _buildError(),
                     Expanded(
                       child: contextos.isEmpty
-                          ? const Center(child: Text("Cargando contextos..."))
+                          ? Center(
+                              child: Text(
+                                "No hay contextos disponibles por ahora.",
+                                style: TextStyle(
+                                  color: Colors.grey.shade700,
+                                  fontSize: 15,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            )
                           : ListView(
                               children: [
                                 for (var c in contextos)
@@ -121,11 +147,18 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: orange, strokeWidth: 4),
-            const SizedBox(height: 20),
+            CircularProgressIndicator(
+              color: orange,
+              strokeWidth: 4,
+            ),
+            const SizedBox(height: 16),
             const Text(
               "Cargando contextos…",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
             ),
           ],
         ),
@@ -136,7 +169,7 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.red.shade50,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.red.shade200),
         ),
         child: Column(
@@ -144,16 +177,31 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
           children: [
             Text(
               error ?? "Error cargando contextos",
-              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.shade600,
-                foregroundColor: Colors.white,
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: orange,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+                onPressed: fetchContextos,
+                child: const Text(
+                  "Reintentar",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
-              onPressed: handleNext,
-              child: const Text("Reintentar"),
             ),
           ],
         ),
@@ -168,41 +216,51 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
 
     return InkWell(
       onTap: () => setState(() => selectedContext = id),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
+        margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? orange.withOpacity(0.1) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          color: isSelected ? const Color(0xFFFFE8DD) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isSelected ? orange : Colors.grey.shade300,
-            width: 2,
+            width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.black.withOpacity(0.04),
               blurRadius: 8,
-              offset: const Offset(0, 3),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
-                color: orange.withOpacity(0.1),
+                color: isSelected
+                    ? orange
+                    : const Color(0xFFFFE8DD), // pastel
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: orange),
+              child: Icon(
+                icon,
+                color: isSelected ? Colors.white : orange,
+                size: 24,
+              ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
               ),
             ),
             Icon(
@@ -216,8 +274,9 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
   }
 
   Widget _buildNextButton() {
-    final isEnabled = (selectedContext == "custom" && customContext.trim().isNotEmpty) ||
-        (selectedContext != null && selectedContext != "custom");
+    final isEnabled =
+        (selectedContext == "custom" && customContext.trim().isNotEmpty) ||
+            (selectedContext != null && selectedContext != "custom");
 
     return SizedBox(
       width: double.infinity,
@@ -225,9 +284,12 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
         onPressed: isEnabled && !loading ? handleNext : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: orange,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           disabledBackgroundColor: orange.withOpacity(0.4),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          elevation: 0,
         ),
         child: Text(
           loading ? "Cargando…" : "Siguiente",

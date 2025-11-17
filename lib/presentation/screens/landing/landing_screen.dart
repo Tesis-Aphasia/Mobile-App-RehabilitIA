@@ -9,74 +9,103 @@ class LandingScreen extends StatelessWidget {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // --- Logo o encabezado ---
-              const Text(
-                '🧠 Rehabilita',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Tu compañero amigable en el camino hacia la recuperación del lenguaje.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(height: 60),
+              const SizedBox(height: 40),
 
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/login');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange.shade700,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              // --- Logo arriba ---
+              Image.asset(
+                'icons/brain_logo.png',
+                height: 90,
+              ),
+
+              // --- Empuja hacia abajo hasta llegar justo al centro ---
+              const Spacer(),
+
+              // --- Título en el centro ---
+              Column(
+                children: [
+                  const Text(
+                    'RehabilitIA',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
                   ),
-                ),
-                child: const Text(
-                  'Iniciar sesión',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                  const SizedBox(height: 12),
+                  Text(
+                    'Tu compañero amigable en el camino hacia la recuperación del lenguaje. Rehabilita tu voz, paso a paso!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+
+              // --- Empuja cosas para que los botones queden abajo ---
+              const Spacer(),
+
+              // --- Botón Registrarse ---
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/register-main');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF48A63),
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Registrarse',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
+
               const SizedBox(height: 16),
 
-              OutlinedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/register-main');
-                },
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: Colors.orange.shade50,
-                  side: BorderSide.none,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              // --- Botón Iniciar Sesión ---
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/login');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE8EBF3),
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    elevation: 0,
                   ),
-                ),
-                child: Text(
-                  'Registrarse',
-                  style: TextStyle(
-                    color: Colors.orange.shade700,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                  child: const Text(
+                    'Iniciar Sesión',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
+
+              const SizedBox(height: 30),
             ],
           ),
         ),

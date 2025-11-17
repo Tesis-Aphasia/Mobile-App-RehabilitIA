@@ -26,79 +26,94 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Center(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    '¡Hola de nuevo!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Inicia sesión con tu correo y contraseña.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 40),
 
-                  // Campo email
-                  TextField(
-                    controller: _emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: 'Correo electrónico',
-                      hintText: 'ejemplo@correo.com',
-                      filled: true,
-                      fillColor: Colors.orange.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
+                // -------- LOGO ARRIBA ----------
+                Image.asset(
+                  'icons/brain_logo.png',
+                  height: 80,
+                ),
+
+                const SizedBox(height: 90),
+
+                // -------- TÍTULO ----------
+                const Text(
+                  '¡Hola de nuevo!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                Text(
+                  'Inicia sesión con tu correo y contraseña.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+
+                const SizedBox(height: 48),
+
+                // -------- EMAIL ----------
+                TextField(
+                  controller: _emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Correo electrónico',
+                    filled: true,
+                    fillColor: const Color(0xFFE8EBF3),
+                    labelStyle: TextStyle(color: Colors.grey.shade700),
+                    hintText: 'ejemplo@correo.com',
+                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                ),
+                const SizedBox(height: 16),
 
-                  // Campo contraseña
-                  TextField(
-                    controller: _passwordCtrl,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: 'Contraseña',
-                      hintText: 'Ingresa tu contraseña',
-                      filled: true,
-                      fillColor: Colors.orange.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
+                // -------- PASSWORD ----------
+                TextField(
+                  controller: _passwordCtrl,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'Contraseña',
+                    filled: true,
+                    fillColor: const Color(0xFFE8EBF3),
+                    labelStyle: TextStyle(color: Colors.grey.shade700),
+                    hintText: 'Ingresa tu contraseña',
+                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                ),
 
-                  // Botón iniciar sesión
-                  ElevatedButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () async {
+                const SizedBox(height: 32),
+
+                // -------- BOTÓN LOGIN ----------
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : () async {
                       final email = _emailCtrl.text.trim();
                       final password = _passwordCtrl.text.trim();
 
                       if (email.isEmpty || password.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Completa todos los campos'),
-                          ),
+                          const SnackBar(content: Text('Completa todos los campos')),
                         );
                         return;
                       }
@@ -106,19 +121,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       setState(() => _isLoading = true);
 
                       try {
-                        // 1️⃣ Autenticación con Firebase
-                        final userCredential =
-                        await _auth.signInWithEmailAndPassword(
-                          email: email,
-                          password: password,
-                        );
+                        final userCredential = await _auth
+                            .signInWithEmailAndPassword(email: email, password: password);
 
                         final user = userCredential.user;
-                        if (user == null) {
-                          throw Exception('Error al iniciar sesión.');
-                        }
+                        if (user == null) throw Exception('Error al iniciar sesión.');
 
-                        // 2️⃣ Verificar que el usuario exista en la colección pacientes
                         final docSnap = await _firestore
                             .collection('pacientes')
                             .doc(user.uid)
@@ -126,32 +134,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         if (!docSnap.exists) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                  'No tienes perfil creado. Regístrate primero.'),
-                            ),
+                            const SnackBar(content: Text('No tienes perfil creado. Regístrate primero.')),
                           );
                           await _auth.signOut();
                           setState(() => _isLoading = false);
                           return;
                         }
 
-                        // 3️⃣ Guardar info en el ViewModel
                         registerVM.userEmail = email;
                         registerVM.userId = user.uid;
 
-                        // 4️⃣ Continuar a la app
                         Navigator.pushReplacementNamed(context, '/menu');
-                      } on FirebaseAuthException catch (e) {
-                        String message = 'Error al iniciar sesión';
-                        if (e.code == 'user-not-found') {
-                          message = 'Usuario no encontrado';
-                        } else if (e.code == 'wrong-password') {
-                          message = 'Contraseña incorrecta';
-                        }
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(message)),
-                        );
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('Error: $e')),
@@ -161,53 +154,57 @@ class _LoginScreenState extends State<LoginScreen> {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange.shade700,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: const Color(0xFFF48A63),
+                      padding: const EdgeInsets.symmetric(vertical: 18),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(24),
                       ),
+                      elevation: 0,
                     ),
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
                         : const Text(
-                      'Iniciar sesión',
+                            'Iniciar sesión',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+
+                // -------- IR A REGISTRO ----------
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '¿No tienes una cuenta?',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade600,
+                        fontSize: 15,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Enlace a registro
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '¿No tienes una cuenta?',
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pushReplacementNamed(context, '/register-main');
+                      },
+                      child: const Text(
+                        'Regístrate',
                         style: TextStyle(
-                          color: Colors.grey.shade600,
+                          color: Color(0xFFF48A63),
+                          fontWeight: FontWeight.w600,
                           fontSize: 15,
                         ),
                       ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pushReplacementNamed(context, '/register-main');
-                        },
-                        child: Text(
-                          'Regístrate',
-                          style: TextStyle(
-                            color: Colors.orange.shade700,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+              ],
             ),
           ),
         ),

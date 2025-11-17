@@ -25,24 +25,49 @@ class _RegisterSummaryScreenState extends State<RegisterSummaryScreen> {
     final data = registerVM.buildProfileData();
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text("Revisar información"),
-        backgroundColor: Colors.orange.shade700,
-      ),
+      // 🎨 Fondo suave como en las otras pantallas de registro
+      backgroundColor: const Color(0xFFFFF7F2),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                "Por favor verifica que tus datos estén correctos antes de finalizar el registro:",
-                style: TextStyle(fontSize: 16, color: Colors.black87),
+              // --- Header suave, sin AppBar duro ---
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                    color: Colors.grey.shade700,
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const Spacer(),
+                  const Text(
+                    "Revisar información",
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.3,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const Spacer(flex: 2),
+                ],
               ),
+              const SizedBox(height: 12),
+
+              Text(
+                "Por favor verifica que tus datos estén correctos antes de finalizar el registro:",
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey.shade800,
+                  height: 1.3,
+                ),
+              ),
+
               const SizedBox(height: 20),
 
-              // --- Secciones visuales ---
+              // --- Contenido scrollable ---
               Expanded(
                 child: ListView(
                   children: [
@@ -68,7 +93,8 @@ class _RegisterSummaryScreenState extends State<RegisterSummaryScreen> {
                           );
                         }).toList(),
                       ),
-                    const SizedBox(height: 16),
+                    if ((data["familia"] as List).isNotEmpty)
+                      const SizedBox(height: 16),
 
                     if ((data["rutinas"] as List).isNotEmpty)
                       _buildSection(
@@ -80,7 +106,8 @@ class _RegisterSummaryScreenState extends State<RegisterSummaryScreen> {
                           );
                         }).toList(),
                       ),
-                    const SizedBox(height: 16),
+                    if ((data["rutinas"] as List).isNotEmpty)
+                      const SizedBox(height: 16),
 
                     if ((data["objetos"] as List).isNotEmpty)
                       _buildSection(
@@ -99,79 +126,92 @@ class _RegisterSummaryScreenState extends State<RegisterSummaryScreen> {
 
               const SizedBox(height: 20),
 
-              ElevatedButton(
-                onPressed: _isLoading
-                    ? null
-                    : () async {
-                  setState(() => _isLoading = true);
+              // --- Botón Finalizar ---
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isLoading
+                      ? null
+                      : () async {
+                          setState(() => _isLoading = true);
 
-                  try {
-                    // 1️⃣ Crear usuario en FirebaseAuth
-                    final userCredential =
-                    await auth.createUserWithEmailAndPassword(
-                      email: registerVM.email.trim(),
-                      password: registerVM.password.trim(),
-                    );
-                    final user = userCredential.user!;
-                    registerVM.setUserId(user.uid);
+                          try {
+                            // 1️⃣ Crear usuario en FirebaseAuth
+                            final userCredential =
+                                await auth.createUserWithEmailAndPassword(
+                              email: registerVM.email.trim(),
+                              password: registerVM.password.trim(),
+                            );
+                            final user = userCredential.user!;
+                            registerVM.setUserId(user.uid);
 
-                    // 2️⃣ Guardar paciente en Firestore
-                    data.remove("password");
-                    data["uid"] = user.uid;
-                    await firestore
-                        .collection("pacientes")
-                        .doc(user.uid)
-                        .set(data);
+                            // 2️⃣ Guardar paciente en Firestore
+                            data.remove("password");
+                            data["uid"] = user.uid;
+                            await firestore
+                                .collection("pacientes")
+                                .doc(user.uid)
+                                .set(data);
 
-                    debugPrint("✅ Paciente registrado en Firestore");
+                            debugPrint("✅ Paciente registrado en Firestore");
 
-                    // 3️⃣ Crear ejercicios SR en backend
-                    try {
-                      final response = await apiService.post(
-                        "/spaced-retrieval/",
-                        {"user_id": user.uid, "profile": data},
-                      );
-                      if (response.statusCode == 200) {
-                        debugPrint("✅ SR cards creadas correctamente");
-                      } else {
-                        debugPrint(
-                            "⚠️ Backend respondió con ${response.statusCode}");
-                      }
-                    } catch (e) {
-                      debugPrint("❌ Error al crear SR: $e");
-                    }
+                            // 3️⃣ Crear ejercicios SR en backend
+                            try {
+                              final response = await apiService.post(
+                                "/spaced-retrieval/",
+                                {"user_id": user.uid, "profile": data},
+                              );
+                              if (response.statusCode == 200) {
+                                debugPrint("✅ SR cards creadas correctamente");
+                              } else {
+                                debugPrint(
+                                  "⚠️ Backend respondió con ${response.statusCode}",
+                                );
+                              }
+                            } catch (e) {
+                              debugPrint("❌ Error al crear SR: $e");
+                            }
 
-                    // 4️⃣ Redirigir a pantalla de éxito
-                    if (mounted) {
-                      Navigator.pushReplacementNamed(
-                        context,
-                        '/register-main-success',
-                      );
-                    }
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Error: $e")),
-                    );
-                  } finally {
-                    setState(() => _isLoading = false);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange.shade700,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                            // 4️⃣ Redirigir a pantalla de éxito
+                            if (mounted) {
+                              Navigator.pushReplacementNamed(
+                                context,
+                                '/register-main-success',
+                              );
+                            }
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Error: $e")),
+                            );
+                          } finally {
+                            setState(() => _isLoading = false);
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF48A63),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 0,
                   ),
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                  "Finalizar registro",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : const Text(
+                          "Finalizar registro",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
             ],
@@ -181,74 +221,115 @@ class _RegisterSummaryScreenState extends State<RegisterSummaryScreen> {
     );
   }
 
-  // --- Widgets auxiliares visuales ---
-  Widget _buildSection({required String title, required List<Widget> children}) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: Colors.orange.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+  // --- Sección tipo card (suave, blanca, con sombra leve) ---
+  Widget _buildSection({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
             ),
-            const SizedBox(height: 12),
-            ...children,
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
       ),
     );
   }
 
   Widget _buildRow(String label, String? value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          Text(value ?? "-", style: const TextStyle(color: Colors.black54)),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            value ?? "-",
+            style: const TextStyle(
+              color: Colors.black54,
+              fontSize: 14,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildCardItem(
-      {required String title, String? subtitle, String? description}) {
+  Widget _buildCardItem({
+    required String title,
+    String? subtitle,
+    String? description,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: const Color(0xFFF5F7FB),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black)),
+          Text(
+            title.isEmpty ? "Sin nombre" : title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
           if (subtitle != null && subtitle.isNotEmpty)
-            Text(subtitle,
-                style: const TextStyle(color: Colors.orange, fontSize: 14)),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                subtitle,
+                style: const TextStyle(
+                  color: Color(0xFFF48A63),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
           if (description != null && description.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(description,
-                style: const TextStyle(color: Colors.black54, fontSize: 13)),
+            Text(
+              description,
+              style: const TextStyle(
+                color: Colors.black54,
+                fontSize: 13,
+                height: 1.3,
+              ),
+            ),
           ],
         ],
       ),

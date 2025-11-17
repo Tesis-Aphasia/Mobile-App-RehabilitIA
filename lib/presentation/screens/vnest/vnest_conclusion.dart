@@ -80,7 +80,7 @@ class VnestConclusionScreen extends StatelessWidget {
     final why = data['why'] ?? '';
     final when = data['when'] ?? '';
 
-    final orange = const Color(0xFFFF8A00);
+    final orange = const Color(0xFFF48A63);
     final green = Colors.green.shade700;
 
     final verboConjugado = conjugatePresentIndicative(who, verbo);
@@ -155,7 +155,7 @@ class VnestConclusionScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background = const Color(0xFFFEF9F4);
-    final orange = const Color(0xFFFF8A00);
+    final orange = const Color(0xFFF48A63);
 
     return Scaffold(
       backgroundColor: background,

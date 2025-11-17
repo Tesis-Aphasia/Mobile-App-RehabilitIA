@@ -12,7 +12,7 @@ class VnestSentenceEvaluationScreen extends StatefulWidget {
 
 class _VnestSentenceEvaluationScreenState extends State<VnestSentenceEvaluationScreen> {
   final background = const Color(0xFFFEF9F4);
-  final orange = const Color(0xFFFF8A00);
+  final orange = const Color(0xFFF48A63);
 
   late List<Map<String, dynamic>> sentences;
   int index = 0;
