@@ -28,7 +28,7 @@ class _RegisterMainScreenState extends State<RegisterMainScreen> {
 
               // ---------------- LOGO (80px) ----------------
               Image.asset(
-                'icons/brain_logo.png',
+                'assets/icons/brain_logo.png',
                 height: 80,
               ),
 

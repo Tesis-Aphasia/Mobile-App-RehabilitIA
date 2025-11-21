@@ -35,7 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // -------- LOGO ARRIBA ----------
                 Image.asset(
-                  'icons/brain_logo.png',
+                  'assets/icons/brain_logo.png',
                   height: 80,
                 ),
 

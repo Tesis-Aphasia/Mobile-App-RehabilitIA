@@ -113,12 +113,12 @@ class _MenuScreenState extends State<MenuScreen> {
       children: [
         // Logo Rehabilita
         Image.asset(
-          'icons/brain_logo.png',
+          'assets/icons/brain_logo.png',
           height: 32,
         ),
         const SizedBox(width: 8),
         Text(
-          'Rehabilita',
+          'RehabilitIA',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w700,
