@@ -7,7 +7,7 @@ class ApiService {
 
   ApiService() {
     final dio = Dio(BaseOptions(
-      baseUrl: 'https://aphasiaapp.loca.lt',
+      baseUrl: 'https://afasia.virtual.uniandes.edu.co/api',
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 120),
     ));
