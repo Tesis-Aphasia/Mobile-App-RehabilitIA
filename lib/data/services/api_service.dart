@@ -1,6 +1,9 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+import 'dart:io' show HttpClient;                 // only used for mobile
+import 'package:dio/io.dart';                    // IO adapter
+import 'package:dio/browser.dart';               // Web adapter
 
 class ApiService {
   late final Dio _dio;
@@ -12,13 +15,19 @@ class ApiService {
       receiveTimeout: const Duration(seconds: 120),
     ));
 
-    dio.httpClientAdapter = IOHttpClientAdapter()
-      ..createHttpClient = () {
-        final client = HttpClient();
-        client.badCertificateCallback =
-            (X509Certificate cert, String host, int port) => true;
-        return client;
-      };
+    if (kIsWeb) {
+      // WEB: use BrowserHttpClientAdapter
+      dio.httpClientAdapter = BrowserHttpClientAdapter();
+    } else {
+      // MOBILE: use IO adapter with cert override
+      dio.httpClientAdapter = IOHttpClientAdapter()
+        ..createHttpClient = () {
+          final client = HttpClient();
+          client.badCertificateCallback =
+              (X509Certificate cert, String host, int port) => true;
+          return client;
+        };
+    }
 
     _dio = dio;
   }
