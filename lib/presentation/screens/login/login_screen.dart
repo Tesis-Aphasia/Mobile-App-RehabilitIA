@@ -15,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
   bool _isLoading = false;
+  bool _isPasswordVisible = false;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -84,9 +85,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 16),
 
                 // -------- PASSWORD ----------
-                TextField(
+                  TextField(
                   controller: _passwordCtrl,
-                  obscureText: true,
+                  obscureText: !_isPasswordVisible,
                   decoration: InputDecoration(
                     labelText: 'Contraseña',
                     filled: true,
@@ -97,6 +98,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isPasswordVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        color: Colors.grey.shade500,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isPasswordVisible = !_isPasswordVisible;
+                        });
+                      },
                     ),
                   ),
                 ),
@@ -145,9 +159,36 @@ class _LoginScreenState extends State<LoginScreen> {
                         registerVM.userId = user.uid;
 
                         Navigator.pushReplacementNamed(context, '/menu');
+                      } on FirebaseAuthException catch (e) {
+                        String message;
+                        switch (e.code) {
+                          case 'user-not-found':
+                          case 'invalid-credential':
+                          case 'wrong-password':
+                            message = 'Correo o contraseña incorrectos. Verifícalos.';
+                            break;
+                          case 'invalid-email':
+                            message = 'El formato del correo no es válido.';
+                            break;
+                          case 'user-disabled':
+                            message = 'Esta cuenta ha sido deshabilitada.';
+                            break;
+                          case 'too-many-requests':
+                            message = 'Demasiados intentos. Intenta más tarde.';
+                            break;
+                          default:
+                            message = 'Ocurrió un error: ${e.message}';
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(message),
+                            backgroundColor: Colors.red.shade400,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: $e')),
+                          SnackBar(content: Text('Error inesperado: $e')),
                         );
                       } finally {
                         setState(() => _isLoading = false);
