@@ -26,30 +26,36 @@ class _MenuScreenState extends State<MenuScreen> {
   }
 
   Future<void> _fetchProgress() async {
-    final registerVM = Provider.of<RegisterViewModel>(context, listen: false);
-    final userId = registerVM.userId;
+  final registerVM = Provider.of<RegisterViewModel>(context, listen: false);
+  final userId = registerVM.userId;
 
-    try {
-      final ref = FirebaseFirestore.instance
-          .collection('pacientes')
-          .doc(userId)
-          .collection('ejercicios_asignados');
-
-      final snap = await ref.get();
-      final completed =
-          snap.docs.where((d) => d['estado'] == 'completado').toList();
-
-      setState(() {
-        completedCount = completed.length;
-        if (completed.isNotEmpty) {
-          final last = completed.last.data();
-          lastExercise = last['contexto'] ?? '-';
-        }
-      });
-    } catch (e) {
-      debugPrint("Error al cargar progreso: $e");
-    }
+  if (userId == null) {
+    debugPrint("⚠️ [Menu] userId es null, no se puede cargar progreso todavía");
+    return;
   }
+
+  try {
+    final ref = FirebaseFirestore.instance
+        .collection('pacientes')
+        .doc(userId)
+        .collection('ejercicios_asignados');
+
+    final snap = await ref.get();
+    final completed =
+        snap.docs.where((d) => d['estado'] == 'completado').toList();
+
+    setState(() {
+      completedCount = completed.length;
+      if (completed.isNotEmpty) {
+        final last = completed.last.data();
+        lastExercise = last['contexto'] ?? '-';
+      }
+    });
+  } catch (e) {
+    debugPrint("❌ [Menu] Error al cargar progreso: $e");
+  }
+}
+
 
   final List<Widget> _pages = [];
 

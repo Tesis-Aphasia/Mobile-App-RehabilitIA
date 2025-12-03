@@ -14,6 +14,24 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
   final background = const Color(0xFFFFF7F2);
   final orange = const Color(0xFFF48A63);
 
+final Map<String, IconData> contextIcons = {
+  "Educación": Icons.school_rounded,
+  "Actividades domésticas": Icons.cleaning_services_rounded,
+  "Trabajo": Icons.work_rounded,
+  "Deportes": Icons.sports_soccer_rounded,
+  "Hacer mercado": Icons.shopping_basket_rounded,
+  "Ir de compras": Icons.shopping_bag_rounded,
+  "Ir a un restaurante": Icons.restaurant_rounded,
+  "Festividades": Icons.celebration_rounded,
+  "Reunión social": Icons.groups_rounded,
+  "Viajes": Icons.flight_takeoff_rounded,
+  "Servicios de transporte": Icons.local_taxi_rounded,
+  "Contexto libre": Icons.lightbulb_rounded,
+  "Cita médica": Icons.local_hospital_rounded,
+};
+
+
+
   String? selectedContext;
   String customContext = "";
   bool loading = false;
@@ -37,10 +55,11 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
           await FirebaseFirestore.instance.collection('contextos').get();
       final data = snapshot.docs.map((doc) {
         final d = doc.data();
+        final nombre = d['contexto'] ?? d['nombre'] ?? 'Sin título';
         return {
           'id': doc.id,
-          'contexto': d['contexto'] ?? d['nombre'] ?? 'Sin título',
-          'icon': Icons.article_rounded, // ícono por defecto
+          'contexto': nombre,
+          'icon': contextIcons[nombre] ?? Icons.category_rounded, // fallback elegante
         };
       }).toList();
 
