@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../register/register_viewmodel.dart';
+import 'package:aphasia_mobile/services/auth_service.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -157,8 +159,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         registerVM.userEmail = email;
                         registerVM.userId = user.uid;
+                        final authService = AuthService();
+                        await authService.saveLoginState(user.uid, email);
 
-                        Navigator.pushReplacementNamed(context, '/menu');
+                        Navigator.pushNamedAndRemoveUntil(context, '/menu', (route) => false);
                       } on FirebaseAuthException catch (e) {
                         String message;
                         switch (e.code) {
@@ -230,6 +234,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     TextButton(
                       onPressed: () {
+                        
                         Navigator.pushReplacementNamed(context, '/register-main');
                       },
                       child: const Text(

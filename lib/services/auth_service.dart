@@ -13,7 +13,9 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     final isLoggedIn = prefs.getBool(_keyIsLoggedIn) ?? false;
     final currentUser = _auth.currentUser;
-    
+    print("Firebase currentUser: ${FirebaseAuth.instance.currentUser}");
+    print("SharedPrefs loggedIn: $isLoggedIn");
+
     // Both SharedPreferences and Firebase must agree
     return isLoggedIn && currentUser != null;
   }
