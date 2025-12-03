@@ -47,7 +47,7 @@ class RehabilitaApp extends StatelessWidget {
         fontFamily: 'Poppins',
       ),
       onGenerateRoute: AppRouter.generateRoute,
-      initialRoute: '/landing',
+      initialRoute: '/',
     );
   }
 }

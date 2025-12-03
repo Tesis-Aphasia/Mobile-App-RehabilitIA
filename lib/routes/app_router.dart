@@ -21,7 +21,7 @@ class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
     // --- Landing ---
-      case '/landing':
+      case '/':
         return MaterialPageRoute(builder: (_) => const LandingScreen());
 
     // --- Registro ---
