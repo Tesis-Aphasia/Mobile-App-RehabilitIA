@@ -22,6 +22,7 @@ class _VnestSentenceEvaluationScreenState extends State<VnestSentenceEvaluationS
 
   String? feedback;
   bool showError = false;
+  bool showExpandedInfo = false;
 
   @override
   void initState() {
@@ -151,13 +152,10 @@ class _VnestSentenceEvaluationScreenState extends State<VnestSentenceEvaluationS
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              const Text(
-                "Desliza a la derecha si es correcta, a la izquierda si es incorrecta.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 14),
-              ),
+              _buildInstructions(),
+              if (showExpandedInfo) _buildExpandedInfo(),
 
               const SizedBox(height: 20),
 
@@ -326,6 +324,55 @@ class _VnestSentenceEvaluationScreenState extends State<VnestSentenceEvaluationS
       ),
     );
   }
+
+  Widget _buildInstructions() => Row(
+        children: [
+          Expanded(
+            child: Text(
+              "Paso 3 de 5: Desliza → si es correcta, ← si es incorrecta.",
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade800,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => setState(() => showExpandedInfo = !showExpandedInfo),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: orange.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                showExpandedInfo ? Icons.info : Icons.info_outline,
+                color: orange,
+                size: 20,
+              ),
+            ),
+          ),
+        ],
+      );
+
+  Widget _buildExpandedInfo() => Container(
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Text(
+          "Lee cada oración con atención. Decide si la oración tiene sentido y es correcta. Puedes deslizar la tarjeta o usar los botones de abajo.",
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.grey.shade700,
+            height: 1.5,
+          ),
+        ),
+      );
 
   Widget _buildLargeCard(String text, double? deltaX) {
     Color borderColor = Colors.grey.shade300;

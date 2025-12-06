@@ -177,13 +177,14 @@ class VnestConclusionScreen extends StatelessWidget {
                   letterSpacing: 0.3,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 10),
               const Text(
-                "Has completado el ejercicio de VNeST.",
+                "Has completado el ejercicio VNeST",
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.black54,
+                  fontSize: 18,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 40),

@@ -243,6 +243,11 @@ class VnestStepScreen extends StatelessWidget {
 
               const SizedBox(height: 18),
 
+              // Instrucciones
+              _buildInstructionsBox(step),
+
+              const SizedBox(height: 18),
+
               // Tarjetas ¿Quién? Verbo ¿Qué?
               _headerCards(accent),
 
@@ -371,6 +376,30 @@ class VnestStepScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildInstructionsBox(int step) {
+    String text = "";
+    switch (step) {
+      case 2:
+        text = "Paso 2 de 5: Elige ¿Dónde? (lugar)";
+        break;
+      case 3:
+        text = "Paso 3 de 5: Elige ¿Por qué? (razón)";
+        break;
+      case 4:
+        text = "Paso 4 de 5: Elige ¿Cuándo? (tiempo)";
+        break;
+    }
+
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 16,
+        color: Colors.grey.shade800,
+        height: 1.4,
       ),
     );
   }

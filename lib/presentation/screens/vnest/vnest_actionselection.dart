@@ -24,6 +24,7 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
 
   String? selectedWho;
   String? selectedWhat;
+  bool showExpandedInfo = false;
 
   @override
   void initState() {
@@ -130,17 +131,8 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
                 ),
               ),
               const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "Elige una persona (¿Quién?) y un objeto (¿Qué?) que combinen bien con el verbo.",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade700,
-                    height: 1.4,
-                  ),
-                ),
-              ),
+              _buildInstructions(),
+              if (showExpandedInfo) _buildExpandedInfo(),
 
               const SizedBox(height: 20),
 
@@ -290,6 +282,55 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
       ),
     );
   }
+
+  Widget _buildInstructions() => Row(
+        children: [
+          Expanded(
+            child: Text(
+              "Paso 1 de 5: Elige ¿Quién? (persona) y ¿Qué? (objeto).",
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade800,
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => setState(() => showExpandedInfo = !showExpandedInfo),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: orange.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                showExpandedInfo ? Icons.info : Icons.info_outline,
+                color: orange,
+                size: 20,
+              ),
+            ),
+          ),
+        ],
+      );
+
+  Widget _buildExpandedInfo() => Container(
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Text(
+          "Selecciona una persona que hace la acción y un objeto. Deben formar una combinación que tenga sentido con el verbo.",
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.grey.shade700,
+            height: 1.5,
+          ),
+        ),
+      );
 
   Widget _buildColumnSelector({
     required String title,

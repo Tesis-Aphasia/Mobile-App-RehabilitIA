@@ -23,6 +23,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
   String? error;
   List<Map<String, dynamic>> verbs = [];
   String? selectedVerb;
+  bool showExpandedInfo = false;
 
   @override
   void initState() {
@@ -89,6 +90,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
           ex['verbo']: {
             'verbo': ex['verbo'],
             'highlight': false,
+            'count': 0,
             'id_ejercicio_general': ex['id_ejercicio_general'],
           }
       };
@@ -114,7 +116,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
             .toSet();
 
         if (pendientesIds.isNotEmpty) {
-          final verbosPendientes = <String>{};
+          final verbosPendientesCount = <String, int>{};
           for (final ex in vnestList) {
             final ids = {ex['_id'], ex['id_ejercicio_general']}
                 .whereType<String>()
@@ -122,13 +124,14 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
             if (ids.any((id) => pendientesIds.contains(id))) {
               final verbo = ex['verbo'];
               if (verbo is String && verbo.isNotEmpty) {
-                verbosPendientes.add(verbo);
+                verbosPendientesCount[verbo] = (verbosPendientesCount[verbo] ?? 0) + 1;
               }
             }
           }
-          for (final vb in verbosPendientes) {
+          for (final vb in verbosPendientesCount.keys) {
             if (verbsDict.containsKey(vb)) {
               verbsDict[vb]!['highlight'] = true;
+              verbsDict[vb]!['count'] = verbosPendientesCount[vb];
             }
           }
         }
@@ -397,24 +400,8 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      "Contexto: ${widget.vnestContext}",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade700,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Elige un verbo para practicar oraciones con la terapia VNeST.",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade700,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+                    _buildInstructions(),
+                    const SizedBox(height: 20),
                     if (error != null) _buildError(),
                     Expanded(
                       child: verbs.isEmpty
@@ -461,6 +448,129 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
           ],
         ),
       );
+
+  Widget _buildInstructions() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                "Contexto: ",
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                widget.vnestContext,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  "Elige un verbo (acción) para formar oraciones.",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade800,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => setState(() => showExpandedInfo = !showExpandedInfo),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: orange.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    showExpandedInfo ? Icons.info : Icons.info_outline,
+                    color: orange,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (showExpandedInfo) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Vamos a formar oraciones completas usando este verbo. Por ejemplo, con el verbo COCINAR puedes decir: \"La mamá cocina pasta en la cocina\".",
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey.shade700,
+                      height: 1.5,
+                    ),
+                  ),
+                  if (_hasPersonalizedExercises()) ...[
+                    const SizedBox(height: 10),
+                    Divider(color: Colors.grey.shade300, height: 1),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE57348),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: Text(
+                              "3",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "Ejercicios personalizados para ti",
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade700,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      );
+
+  bool _hasPersonalizedExercises() {
+    return verbs.any((v) => v['highlight'] == true && v['count'] > 0);
+  }
 
   Widget _buildError() => Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -511,6 +621,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
   Widget _buildVerbOption(Map<String, dynamic> verbData) {
     final verbo = (verbData["verbo"] ?? "").toString();
     final highlight = (verbData["highlight"] ?? false) == true;
+    final count = (verbData["count"] ?? 0) as int;
     final isSelected = selectedVerb == verbo;
 
     return InkWell(
@@ -525,17 +636,15 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         decoration: BoxDecoration(
           color: isSelected
               ? const Color(0xFFFFE8DD)
-              : highlight
-                  ? const Color(0xFFFFF4D2)
-                  : Colors.white,
+              : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isSelected
                 ? orange
                 : highlight
-                    ? Colors.amber
+                    ? const Color(0xFFFFD4C4)
                     : Colors.grey.shade300,
-            width: 1.5,
+            width: isSelected ? 2 : 1.5,
           ),
           boxShadow: [
             BoxShadow(
@@ -552,32 +661,46 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
               height: 46,
               decoration: BoxDecoration(
                 color: highlight
-                    ? Colors.amber.withOpacity(0.15)
+                    ? const Color(0xFFFFF0EB)
                     : const Color(0xFFFFE8DD),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 highlight ? Icons.lightbulb_rounded : Icons.play_arrow_rounded,
-                color: highlight ? Colors.amber.shade700 : orange,
-                size: highlight ? 26 : 28,
+                color: orange,
+                size: highlight ? 24 : 28,
               ),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
                 verbo,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color:
-                      highlight ? Colors.amber.shade800 : Colors.black87,
+                  color: Colors.black87,
                 ),
               ),
             ),
-            Icon(
-              isSelected ? Icons.check_circle_rounded : Icons.circle_outlined,
-              color: isSelected ? orange : Colors.grey.shade400,
-            ),
+            if (highlight && count > 0)
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE57348),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    count.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

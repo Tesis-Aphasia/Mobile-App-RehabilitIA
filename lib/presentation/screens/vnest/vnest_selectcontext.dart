@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../register/register_viewmodel.dart';
 
 class VnestSelectContextScreen extends StatefulWidget {
   const VnestSelectContextScreen({super.key});
@@ -19,6 +22,7 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
   bool loading = false;
   String? error;
   List<Map<String, dynamic>> contextos = [];
+  bool showExpandedInfo = false;
 
   @override
   void initState() {
@@ -33,19 +37,59 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
       error = null;
     });
     try {
+      final registerVM = Provider.of<RegisterViewModel>(context, listen: false);
+      final email = registerVM.userEmail;
+      final uid = registerVM.userId;
+
+      // 1️⃣ Traer contextos disponibles
       final snapshot =
           await FirebaseFirestore.instance.collection('contextos').get();
-      final data = snapshot.docs.map((doc) {
+      final contextosData = snapshot.docs.map((doc) {
         final d = doc.data();
         return {
           'id': doc.id,
           'contexto': d['contexto'] ?? d['nombre'] ?? 'Sin título',
-          'icon': Icons.article_rounded, // ícono por defecto
+          'icon': Icons.article_rounded,
+          'highlight': false,
+          'count': 0,
         };
       }).toList();
 
+      // 2️⃣ Resolver paciente
+      final pacienteDocId = await _resolvePacienteDocId(uid: uid, email: email);
+
+      if (pacienteDocId != null) {
+        // 3️⃣ Leer asignados personalizados pendientes
+        final asignadosSnap = await FirebaseFirestore.instance
+            .collection('pacientes')
+            .doc(pacienteDocId)
+            .collection('ejercicios_asignados')
+            .where('tipo', isEqualTo: 'VNEST')
+            .where('personalizado', isEqualTo: true)
+            .where('estado', isEqualTo: 'pendiente')
+            .get();
+
+        // Agrupar por contexto y contar
+        final contextCounts = <String, int>{};
+        for (final doc in asignadosSnap.docs) {
+          final ctx = (doc.data()['contexto'] ?? '').toString();
+          if (ctx.isNotEmpty) {
+            contextCounts[ctx] = (contextCounts[ctx] ?? 0) + 1;
+          }
+        }
+
+        // Marcar contextos con ejercicios personalizados
+        for (final c in contextosData) {
+          final ctx = c['contexto'] as String;
+          if (contextCounts.containsKey(ctx)) {
+            c['highlight'] = true;
+            c['count'] = contextCounts[ctx];
+          }
+        }
+      }
+
       setState(() {
-        contextos = data;
+        contextos = contextosData;
       });
     } catch (e) {
       debugPrint("Error cargando contextos: $e");
@@ -55,6 +99,30 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
     } finally {
       setState(() => loading = false);
     }
+  }
+
+  // ============================
+  // 🔹 Resolver doc del paciente (uid/email/campo email)
+  // ============================
+  Future<String?> _resolvePacienteDocId({String? uid, String? email}) async {
+    final col = FirebaseFirestore.instance.collection('pacientes');
+
+    if (email != null && email.isNotEmpty) {
+      final byEmailId = await col.doc(email).get();
+      if (byEmailId.exists) return byEmailId.id;
+    }
+
+    if (uid != null && uid.isNotEmpty) {
+      final byUid = await col.doc(uid).get();
+      if (byUid.exists) return byUid.id;
+    }
+
+    if (email != null && email.isNotEmpty) {
+      final q = await col.where('email', isEqualTo: email).limit(1).get();
+      if (q.docs.isNotEmpty) return q.docs.first.id;
+    }
+
+    return null;
   }
 
   void handleNext() {
@@ -100,18 +168,10 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Descripción suave arriba
-                    Text(
-                      "Elige un contexto para practicar!",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade700,
-                        height: 1.4,
-                      ),
-                    ),
+                    _buildInstructions(),
                     const SizedBox(height: 16),
                     if (error != null) _buildError(),
-                    Expanded(
+                  Expanded(
                       child: contextos.isEmpty
                           ? Center(
                               child: Text(
@@ -130,6 +190,8 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
                                     id: c['contexto'],
                                     icon: c['icon'],
                                     title: c['contexto'],
+                                    highlight: c['highlight'] ?? false,
+                                    count: c['count'] ?? 0,
                                   )
                               ],
                             ),
@@ -162,6 +224,61 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
             ),
           ],
         ),
+      );
+
+  Widget _buildInstructions() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  "Selecciona un contexto (situación) para empezar.",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade800,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => setState(() => showExpandedInfo = !showExpandedInfo),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: orange.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    showExpandedInfo ? Icons.info : Icons.info_outline,
+                    color: orange,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (showExpandedInfo) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Text(
+                "Un contexto es una situación de la vida diaria, como estar en la cocina, el supermercado o el parque. Vamos a practicar verbos y formar oraciones en ese contexto.",
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey.shade700,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ],
+        ],
       );
 
   Widget _buildError() => Container(
@@ -211,6 +328,8 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
     required String id,
     required IconData icon,
     required String title,
+    required bool highlight,
+    required int count,
   }) {
     final isSelected = selectedContext == id;
 
@@ -221,11 +340,17 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
         margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFFE8DD) : Colors.white,
+          color: isSelected
+              ? const Color(0xFFFFE8DD)
+              : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: isSelected ? orange : Colors.grey.shade300,
-            width: 1.5,
+            color: isSelected
+                ? orange
+                : highlight
+                    ? const Color(0xFFFFD4C4)
+                    : Colors.grey.shade300,
+            width: isSelected ? 2 : 1.5,
           ),
           boxShadow: [
             BoxShadow(
@@ -243,7 +368,7 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
               decoration: BoxDecoration(
                 color: isSelected
                     ? orange
-                    : const Color(0xFFFFE8DD), // pastel
+                    : const Color(0xFFFFE8DD),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -263,10 +388,25 @@ class _VnestSelectContextScreenState extends State<VnestSelectContextScreen> {
                 ),
               ),
             ),
-            Icon(
-              isSelected ? Icons.check_circle_rounded : Icons.circle_outlined,
-              color: isSelected ? orange : Colors.grey.shade400,
-            ),
+            if (highlight && count > 0)
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE57348),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    count.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
