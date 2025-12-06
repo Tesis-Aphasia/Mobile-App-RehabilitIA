@@ -1,0 +1,15 @@
+build/
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+android/
+ios/
+windows/
+linux/
+macos/
+test/
+.git/
+.gitignore
+.idea/
+.vscode/

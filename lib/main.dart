@@ -7,7 +7,6 @@ import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 Future<void> main() async {
-  // 👇 Asegura la inicialización antes de usar Firebase
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(
@@ -30,7 +29,6 @@ class RehabilitaApp extends StatelessWidget {
     return MaterialApp(
       title: 'Rehabilita',
       debugShowCheckedModeBanner: false,
-
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -40,14 +38,13 @@ class RehabilitaApp extends StatelessWidget {
         Locale('es', 'ES'),
         Locale('en', 'US'),
       ],
-
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
         fontFamily: 'Poppins',
       ),
       onGenerateRoute: AppRouter.generateRoute,
-      initialRoute: '/landing',
+      initialRoute: '/splash',
     );
   }
 }

@@ -12,7 +12,7 @@
     </queries>
 
     <application
-        android:label="aphasia_mobile"
+        android:label="RehabilitIA"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 

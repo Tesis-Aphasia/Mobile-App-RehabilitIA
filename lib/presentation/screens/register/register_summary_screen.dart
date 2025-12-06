@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:aphasia_mobile/presentation/screens/register/register_viewmodel.dart';
 import 'package:aphasia_mobile/data/services/api_service.dart';
+import 'package:aphasia_mobile/services/auth_service.dart';
 
 class RegisterSummaryScreen extends StatefulWidget {
   const RegisterSummaryScreen({super.key});
@@ -172,13 +173,15 @@ class _RegisterSummaryScreenState extends State<RegisterSummaryScreen> {
                               debugPrint("❌ Error al crear SR: $e");
                             }
 
-                            // 4️⃣ Redirigir a pantalla de éxito
+                            // 4️⃣ Guardar login persistente
+                            final authService = AuthService();
+                            await authService.saveLoginState(user.uid, registerVM.userEmail);
+
+                            // 5️⃣ Navegar y limpiar todo el stack (ATRÁS -> sale de la app)
                             if (mounted) {
-                              Navigator.pushReplacementNamed(
-                                context,
-                                '/register-main-success',
-                              );
+                              Navigator.pushNamedAndRemoveUntil(context, '/menu', (route) => false);
                             }
+
                           } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text("Error: $e")),

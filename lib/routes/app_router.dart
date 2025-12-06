@@ -15,13 +15,18 @@ import '../presentation/screens/vnest/vnest_actionselection.dart';
 import '../presentation/screens/vnest/vnest_sentenceevaluation.dart';
 import '../presentation/screens/vnest/vnest_sentenceexpansion.dart';
 import '../presentation/screens/vnest/vnest_selectverb.dart';
+import '../presentation/screens/splash/splash_screen.dart';
+
 
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case '/splash':
+  return MaterialPageRoute(builder: (_) => const SplashScreen());
+
     // --- Landing ---
-      case '/landing':
+      case '/':
         return MaterialPageRoute(builder: (_) => const LandingScreen());
 
     // --- Registro ---

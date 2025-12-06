@@ -421,7 +421,9 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
                                   _buildVerbOption(verbs[index]),
                             ),
                     ),
-                  ],
+                      const SizedBox(height: 16),
+                      _buildNextButton(),
+                    ],
                 ),
         ),
       ),
@@ -625,10 +627,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
     final isSelected = selectedVerb == verbo;
 
     return InkWell(
-      onTap: () async {
-        setState(() => selectedVerb = verbo);
-        await openExercise(verbo);
-      },
+      onTap: () => setState(() => selectedVerb = verbo),
       borderRadius: BorderRadius.circular(18),
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
@@ -702,6 +701,43 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ============================
+  // 🔹 BOTÓN SIGUIENTE
+  // ============================
+  Widget _buildNextButton() {
+    final isEnabled = selectedVerb != null && selectedVerb!.isNotEmpty;
+
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: isEnabled && !loadingExercise
+            ? () async {
+                if (selectedVerb != null) {
+                  await openExercise(selectedVerb!);
+                }
+              }
+            : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: orange,
+          disabledBackgroundColor: orange.withOpacity(0.4),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          elevation: 0,
+        ),
+        child: Text(
+          loadingExercise ? "Cargando…" : "Siguiente",
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
       ),
     );

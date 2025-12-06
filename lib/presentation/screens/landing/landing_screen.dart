@@ -17,7 +17,7 @@ class LandingScreen extends StatelessWidget {
 
               // --- Logo arriba ---
               Image.asset(
-                'icons/brain_logo.png',
+                'assets/icons/brain_logo.png',
                 height: 90,
               ),
 
@@ -51,12 +51,13 @@ class LandingScreen extends StatelessWidget {
               // --- Empuja cosas para que los botones queden abajo ---
               const Spacer(),
 
-              // --- Botón Registrarse ---
+
+              // --- Botón Iniciar Sesión ---
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/register-main');
+                    Navigator.pushNamed(context, '/login');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF48A63),
@@ -67,7 +68,7 @@ class LandingScreen extends StatelessWidget {
                     elevation: 0,
                   ),
                   child: const Text(
-                    'Registrarse',
+                    'Iniciar Sesión',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -79,12 +80,12 @@ class LandingScreen extends StatelessWidget {
 
               const SizedBox(height: 16),
 
-              // --- Botón Iniciar Sesión ---
+              // --- Botón Registrarse ---
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/login');
+                    Navigator.pushNamed(context, '/register-main');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFE8EBF3),
@@ -95,7 +96,7 @@ class LandingScreen extends StatelessWidget {
                     elevation: 0,
                   ),
                   child: const Text(
-                    'Iniciar Sesión',
+                    'Registrarse',
                     style: TextStyle(
                       color: Colors.black87,
                       fontSize: 18,
@@ -104,6 +105,9 @@ class LandingScreen extends StatelessWidget {
                   ),
                 ),
               ),
+
+
+
 
               const SizedBox(height: 30),
             ],
