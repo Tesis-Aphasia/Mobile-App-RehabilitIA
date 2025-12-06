@@ -48,6 +48,31 @@ final Map<String, IconData> contextIcons = {
     fetchContextos();
   }
 
+  // ============================
+  // 🔹 Verificar si un ejercicio está revisado
+  // ============================
+  Future<bool> _isEjercicioRevisado(String? idEjercicioGeneral) async {
+    if (idEjercicioGeneral == null || idEjercicioGeneral.isEmpty) {
+      return false;
+    }
+
+    try {
+      final ejercicioDoc = await FirebaseFirestore.instance
+          .collection('ejercicios')
+          .doc(idEjercicioGeneral)
+          .get();
+
+      if (!ejercicioDoc.exists) {
+        return false;
+      }
+
+      final data = ejercicioDoc.data();
+      return (data?['revisado'] ?? false) == true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// 🔥 Trae los contextos desde Firebase
   Future<void> fetchContextos() async {
     setState(() {
@@ -88,10 +113,27 @@ final Map<String, IconData> contextIcons = {
             .where('estado', isEqualTo: 'pendiente')
             .get();
 
-        // Agrupar por contexto y contar
+        // Agrupar por contexto y contar (solo revisados)
         final contextCounts = <String, int>{};
         for (final doc in asignadosSnap.docs) {
-          final ctx = (doc.data()['contexto'] ?? '').toString();
+          final data = doc.data();
+          final idEjercicio = data['id_ejercicio']?.toString();
+          if (idEjercicio == null || idEjercicio.isEmpty) continue;
+          
+          final vnestDoc = await FirebaseFirestore.instance
+              .collection('ejercicios_VNEST')
+              .doc(idEjercicio)
+              .get();
+          
+          if (!vnestDoc.exists) continue;
+          
+          final vnestData = vnestDoc.data() ?? {};
+          final idEjercicioGeneral = vnestData['id_ejercicio_general']?.toString();
+          
+          final isRevisado = await _isEjercicioRevisado(idEjercicioGeneral);
+          if (!isRevisado) continue;
+          
+          final ctx = data['contexto']?.toString() ?? '';
           if (ctx.isNotEmpty) {
             contextCounts[ctx] = (contextCounts[ctx] ?? 0) + 1;
           }
@@ -111,7 +153,6 @@ final Map<String, IconData> contextIcons = {
         contextos = contextosData;
       });
     } catch (e) {
-      debugPrint("Error cargando contextos: $e");
       setState(() {
         error = "No se pudieron cargar los contextos.";
       });
@@ -288,7 +329,7 @@ final Map<String, IconData> contextIcons = {
                 border: Border.all(color: Colors.grey.shade200),
               ),
               child: Text(
-                "Un contexto es una situación de la vida diaria, como estar en la cocina, el supermercado o el parque. Vamos a practicar verbos y formar oraciones en ese contexto.",
+                "Selecciona un contexto para trabajar con una situación de la vida diaria, como estar en la cocina, el supermercado o el parque. Vamos a practicar verbos y formar oraciones en ese contexto.",
                 style: TextStyle(
                   fontSize: 15,
                   color: Colors.grey.shade700,

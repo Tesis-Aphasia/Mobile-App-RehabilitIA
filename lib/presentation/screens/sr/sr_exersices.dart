@@ -81,13 +81,21 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     }
 
     try {
+      // 1. Obtener todos los ejercicios asignados
       final asignadosSnap = await FirebaseFirestore.instance
           .collection("pacientes")
           .doc(userId)
           .collection("ejercicios_asignados")
           .get();
 
+      // 2. Filtrar los que NO están completados y obtener sus IDs
       final idsAsignados = asignadosSnap.docs
+          .where((d) {
+            final data = d.data();
+            final estado = data["estado"]?.toString() ?? "pendiente";
+            // Solo incluir si NO está completado
+            return estado != "completado";
+          })
           .map((d) => d.data()["id_ejercicio"] as String?)
           .where((id) => id != null && id.isNotEmpty)
           .toList();
@@ -97,6 +105,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
         return;
       }
 
+      // 3. Buscar en ejercicios_SR
       final ejerciciosSnap = await FirebaseFirestore.instance
           .collection("ejercicios_SR")
           .where("id_ejercicio_general", whereIn: idsAsignados)
@@ -199,8 +208,65 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     });
   }
 
-  void handleNextCard() {
+  Future<void> _markExerciseAsCompleted() async {
     if (currentCard == null) return;
+    
+    final userId = Provider.of<RegisterViewModel>(context, listen: false).userId;
+    if (userId == null || userId.isEmpty) return;
+
+    try {
+      final idEjercicioGeneral = currentCard!["id_ejercicio_general"];
+      if (idEjercicioGeneral == null || idEjercicioGeneral.toString().isEmpty) {
+        return;
+      }
+
+      final asignadosRef = FirebaseFirestore.instance
+          .collection("pacientes")
+          .doc(userId)
+          .collection("ejercicios_asignados");
+
+      // Buscar el ejercicio asignado por id_ejercicio
+      final query = await asignadosRef
+          .where("id_ejercicio", isEqualTo: idEjercicioGeneral.toString())
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        final doc = query.docs.first;
+        await doc.reference.update({
+          "estado": "completado",
+          "ultima_fecha_realizado": FieldValue.serverTimestamp(),
+          "veces_realizado": FieldValue.increment(1),
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("✅ Ejercicio guardado como completado"),
+              duration: Duration(seconds: 2),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Error al guardar el ejercicio"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void handleNextCard() async {
+    if (currentCard == null) return;
+    
+    // Marcar como completado antes de cambiar de tarjeta
+    await _markExerciseAsCompleted();
+    
     final currentIndex = cards.indexWhere((c) => c["id"] == currentCard!["id"]);
     final nextIndex = (currentIndex + 1) % cards.length;
 
@@ -245,48 +311,63 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     if (cards.isEmpty) {
       return Scaffold(
         backgroundColor: background,
+        appBar: AppBar(
+          backgroundColor: background,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new_rounded, color: orange),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
         body: Padding(
           padding: const EdgeInsets.all(24),
           child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                Icon(
+                  Icons.check_circle_outline_rounded,
+                  size: 80,
+                  color: Colors.green.shade400,
+                ),
+                const SizedBox(height: 20),
                 const Text(
-                  "No hay ejercicios aún 😄",
+                  "¡Todo completado! 🎉",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 24,
                     fontWeight: FontWeight.w800,
                     color: Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  "Cuando tu terapeuta te asigne ejercicios de memoria,\nlos verás aquí.",
+                  "No tienes ejercicios de memoria pendientes.\n\nSi tu terapeuta te asigna nuevos ejercicios,\nlos verás aquí.",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 16,
                     color: Colors.grey.shade700,
-                    height: 1.4,
+                    height: 1.5,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: orange,
                     padding:
-                        const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                        const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
                     elevation: 0,
                   ),
                   child: const Text(
-                    "Volver",
+                    "Volver al menú",
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
                   ),
                 ),
@@ -499,35 +580,75 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
       key: const ValueKey("doneCard"),
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        Icon(
+          Icons.check_circle_rounded,
+          color: Colors.green.shade600,
+          size: 80,
+        ),
+        const SizedBox(height: 20),
         const Text(
-          "🎉 ¡Completaste esta tarjeta!",
+          "¡Ejercicio Completado!",
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 22,
+            fontSize: 24,
             fontWeight: FontWeight.w800,
             color: Colors.black87,
           ),
         ),
-        const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: handleNextCard,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: orange,
-            padding:
-                const EdgeInsets.symmetric(vertical: 14, horizontal: 28),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(22),
-            ),
-            elevation: 0,
+        const SizedBox(height: 12),
+        Text(
+          "Has completado todos los intervalos de esta tarjeta.",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.grey.shade700,
+            height: 1.4,
           ),
-          child: const Text(
-            "Siguiente",
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+        ),
+        const SizedBox(height: 28),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.grey.shade200,
+                foregroundColor: Colors.black87,
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                "Volver al menú",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
             ),
-          ),
+            const SizedBox(width: 12),
+            ElevatedButton(
+              onPressed: handleNextCard,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: orange,
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                "Siguiente ejercicio",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

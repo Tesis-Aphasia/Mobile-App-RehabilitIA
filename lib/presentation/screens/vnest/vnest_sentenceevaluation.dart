@@ -329,7 +329,7 @@ class _VnestSentenceEvaluationScreenState extends State<VnestSentenceEvaluationS
         children: [
           Expanded(
             child: Text(
-              "Paso 3 de 5: Desliza → si es correcta, ← si es incorrecta.",
+              "Desliza a la derecha si es correcta y a la izquierda si es incorrecta.",
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey.shade800,

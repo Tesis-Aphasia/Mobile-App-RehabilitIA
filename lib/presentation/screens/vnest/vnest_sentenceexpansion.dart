@@ -384,13 +384,13 @@ class VnestStepScreen extends StatelessWidget {
     String text = "";
     switch (step) {
       case 2:
-        text = "Paso 2 de 5: Elige ¿Dónde? (lugar)";
+        text = "Elige ¿Dónde? (lugar)";
         break;
       case 3:
-        text = "Paso 3 de 5: Elige ¿Por qué? (razón)";
+        text = "Elige ¿Por qué? (razón)";
         break;
       case 4:
-        text = "Paso 4 de 5: Elige ¿Cuándo? (tiempo)";
+        text = "Elige ¿Cuándo? (tiempo)";
         break;
     }
 

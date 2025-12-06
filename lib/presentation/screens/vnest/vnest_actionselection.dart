@@ -287,7 +287,7 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
         children: [
           Expanded(
             child: Text(
-              "Paso 1 de 5: Elige ¿Quién? (persona) y ¿Qué? (objeto).",
+              "Crea una oración inicial con tu verbo!",
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey.shade800,
@@ -323,7 +323,7 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
           border: Border.all(color: Colors.grey.shade200),
         ),
         child: Text(
-          "Selecciona una persona que hace la acción y un objeto. Deben formar una combinación que tenga sentido con el verbo.",
+          "Selecciona un par sujeto-objeto que tengan sentido con el verbo elegido, para formar una oración coherente. Si la combinación no tiene sentido, te lo indicaremos para que pruebes con otra opción.",
           style: TextStyle(
             fontSize: 15,
             color: Colors.grey.shade700,

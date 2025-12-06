@@ -56,6 +56,31 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
   }
 
   // ============================
+  // 🔹 Verificar si un ejercicio está revisado
+  // ============================
+  Future<bool> _isEjercicioRevisado(String? idEjercicioGeneral) async {
+    if (idEjercicioGeneral == null || idEjercicioGeneral.isEmpty) {
+      return false;
+    }
+
+    try {
+      final ejercicioDoc = await FirebaseFirestore.instance
+          .collection('ejercicios')
+          .doc(idEjercicioGeneral)
+          .get();
+
+      if (!ejercicioDoc.exists) {
+        return false;
+      }
+
+      final data = ejercicioDoc.data();
+      return (data?['revisado'] ?? false) == true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ============================
   // 🔹 Obtener verbos + marcar highlight
   // ============================
   Future<void> fetchVerbs() async {
@@ -75,7 +100,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
           .where('contexto', isEqualTo: widget.vnestContext)
           .get();
 
-      final vnestList = vnestSnap.docs.map((d) {
+      final allVnestList = vnestSnap.docs.map((d) {
         final m = d.data();
         return {
           ...m,
@@ -84,6 +109,18 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
           'id_ejercicio_general': m['id_ejercicio_general'] ?? d.id,
         };
       }).where((e) => (e['verbo'] ?? '').toString().isNotEmpty).toList();
+
+      // 2️⃣ Filtrar solo los que están revisados
+      final vnestList = <Map<String, dynamic>>[];
+      for (final ex in allVnestList) {
+        final isRevisado = await _isEjercicioRevisado(
+          ex['id_ejercicio_general']?.toString(),
+        );
+        if (isRevisado) {
+          vnestList.add(ex);
+        }
+      }
+
 
       final Map<String, Map<String, dynamic>> verbsDict = {
         for (final ex in vnestList)
@@ -95,11 +132,11 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
           }
       };
 
-      // 2️⃣ Resolver paciente
+      // 3️⃣ Resolver paciente
       final pacienteDocId = await _resolvePacienteDocId(uid: uid, email: email);
 
       if (pacienteDocId != null) {
-        // 3️⃣ Leer asignados pendientes del contexto VNEST
+        // 4️⃣ Leer asignados pendientes del contexto VNEST
         final asignadosSnap = await FirebaseFirestore.instance
             .collection('pacientes')
             .doc(pacienteDocId)
@@ -199,6 +236,10 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         final vn = vnDoc.data() ?? {};
         if ((vn['verbo'] ?? '') != verbo) continue;
 
+        final idEjercicioGeneral = vn['id_ejercicio_general']?.toString();
+        final isRevisado = await _isEjercicioRevisado(idEjercicioGeneral);
+        if (!isRevisado) continue;
+
         bool personalizado = (m['personalizado'] ?? false) == true;
         if (!personalizado) {
           personalizado = await _isPersonalizedForVnestDoc(vnDoc);
@@ -235,21 +276,31 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         return;
       }
 
-      // 3) Buscar VNEST del verbo en el contexto
+      // 3) Buscar VNEST del verbo en el contexto (solo revisados)
       final allVnestSnap = await fs
           .collection('ejercicios_VNEST')
           .where('contexto', isEqualTo: widget.vnestContext)
           .where('verbo', isEqualTo: verbo)
           .get();
 
-      if (allVnestSnap.docs.isEmpty) {
-        throw Exception("No se encontró ejercicio de '$verbo' en este contexto.");
+      final vnestRevisadosDocs = <DocumentSnapshot<Map<String, dynamic>>>[];
+      for (final doc in allVnestSnap.docs) {
+        final data = doc.data();
+        final idEjercicioGeneral = data?['id_ejercicio_general']?.toString();
+        final isRevisado = await _isEjercicioRevisado(idEjercicioGeneral);
+        if (isRevisado) {
+          vnestRevisadosDocs.add(doc);
+        }
+      }
+
+      if (vnestRevisadosDocs.isEmpty) {
+        throw Exception("No se encontró ejercicio revisado de '$verbo' en este contexto.");
       }
 
       final asignadosIds =
           asignadosSnap.docs.map((d) => d.data()['id_ejercicio'].toString()).toSet();
       final noAsignadosDocs =
-          allVnestSnap.docs.where((d) => !asignadosIds.contains(d.id)).toList();
+          vnestRevisadosDocs.where((d) => !asignadosIds.contains(d.id)).toList();
 
       Future<List<DocumentSnapshot<Map<String, dynamic>>>> _sortPersonalizedFirst(
         List<DocumentSnapshot<Map<String, dynamic>>> docs,
@@ -348,7 +399,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
       }
 
       // 6) Fallback
-      final fallback = allVnestSnap.docs.first;
+      final fallback = vnestRevisadosDocs.first;
       final fb = fallback.data() ?? {};
       Navigator.pushNamed(context, '/vnest-action', arguments: {
         ...fb,
@@ -518,7 +569,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Vamos a formar oraciones completas usando este verbo. Por ejemplo, con el verbo COCINAR puedes decir: \"La mamá cocina pasta en la cocina\".",
+                    "Vamos a formar oraciones completas usando este verbo. Por ejemplo, con el verbo COCINAR podemos construir: \"La mamá cocina pasta en la cocina\".",
                     style: TextStyle(
                       fontSize: 15,
                       color: Colors.grey.shade700,
@@ -540,7 +591,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
                           ),
                           child: const Center(
                             child: Text(
-                              "3",
+                              "!",
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 11,
