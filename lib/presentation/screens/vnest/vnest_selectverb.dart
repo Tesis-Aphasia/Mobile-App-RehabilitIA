@@ -677,6 +677,9 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
     final count = (verbData["count"] ?? 0) as int;
     final isSelected = selectedVerb == verbo;
 
+    final imagePath = _getImagePath(verbo);
+
+
     return InkWell(
       onTap: () => setState(() => selectedVerb = verbo),
       borderRadius: BorderRadius.circular(18),
@@ -723,13 +726,30 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
             ),
             const SizedBox(width: 14),
             Expanded(
-              child: Text(
-                verbo,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black87,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      verbo,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.image_outlined,
+                      size: 20,
+                      color: Colors.grey,
+                    ),
+                    onPressed: () {
+                      // 🔹 Aquí mapeas verbo → imagen
+                      _showImage(context, imagePath);
+                    },
+                  ),
+                ],
               ),
             ),
             if (highlight && count > 0)
@@ -793,4 +813,30 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
       ),
     );
   }
+
+  void _showImage(BuildContext context, String imagePath) {
+  showDialog(
+    context: context,
+    builder: (_) => Dialog(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Image.asset(imagePath),
+      ),
+    ),
+  );
+}
+
+String _getImagePath(String word) {
+  final normalized = word
+      .toLowerCase()
+      .replaceAll(" ", "_")
+      .replaceAll("á", "a")
+      .replaceAll("é", "e")
+      .replaceAll("í", "i")
+      .replaceAll("ó", "o")
+      .replaceAll("ú", "u")
+      .replaceAll("ñ", "n");
+
+  return "assets/images/$normalized.png";
+}
 }

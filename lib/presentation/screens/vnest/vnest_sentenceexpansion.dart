@@ -1,5 +1,30 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
+
+// ===========================================================
+//  Palabras con imagen: cargadas dinámicamente desde AssetManifest
+//  Convierte "pista_de_atletismo.png" → "pista de atletismo"
+//  Agrega un PNG a assets/images/ y se reconoce automáticamente
+// ===========================================================
+List<String> _imageWords = [];
+
+// Carga palabras desde AssetManifest y llama setState para forzar rebuild
+// Se cachea globalmente: solo hace la lectura una vez
+Future<void> _loadImageWords(void Function(VoidCallback) setState) async {
+  if (_imageWords.isNotEmpty) return;
+  try {
+    final manifest = await rootBundle.loadString('AssetManifest.json');
+    final regex = RegExp(r'assets/images/([^"]+)\.png');
+    final matches = regex.allMatches(manifest);
+    final words = matches
+        .map((m) => m.group(1)!.replaceAll('_', ' '))
+        .toList();
+    words.sort((a, b) => b.length.compareTo(a.length));
+    setState(() => _imageWords = words);  // ← rebuild con palabras listas
+  } catch (_) {}
+}
+
 
 /// =============================
 ///  Modelo para opción-explicación
@@ -25,7 +50,7 @@ String conjugatePresentIndicative(String sujeto, String verbo) {
 }
 
 /// =============================
-///  Construcción de oración coloreada (agrandada)
+///  Construcción de oración coloreada
 /// =============================
 Widget buildColoredSentence({
   required String who,
@@ -91,15 +116,12 @@ Map<String, dynamic> _pickExpansiones(
   String who,
   String what,
 ) {
-  // 1) Plano 'expansiones'
   final rootExp = _asMap(ex['expansiones']);
   if (rootExp.isNotEmpty) return rootExp;
 
-  // 2) Plano 'personalizado'
   final pers = _asMap(ex['personalizado']);
   if (pers.isNotEmpty) return pers;
 
-  // 3) paresPersonalizados
   final paresPers = _asList(ex['paresPersonalizados']);
   if (paresPers.isNotEmpty) {
     final match = paresPers.cast<Map>().firstWhere(
@@ -110,7 +132,6 @@ Map<String, dynamic> _pickExpansiones(
     if (exp.isNotEmpty) return exp;
   }
 
-  // 4) pares (base)
   final paresBase = _asList(ex['pares']);
   if (paresBase.isNotEmpty) {
     final match = paresBase.cast<Map>().firstWhere(
@@ -124,7 +145,6 @@ Map<String, dynamic> _pickExpansiones(
   return <String, dynamic>{};
 }
 
-/// Crea la lista de pares (opción/explicación) desde una sección
 List<ExpansionPair> _makePairsFrom(Map<String, dynamic> seccion) {
   final ops = List<String>.from(_asList(seccion['opciones']));
   final exps = List<String>.from(_asList(seccion['explicaciones']));
@@ -134,6 +154,273 @@ List<ExpansionPair> _makePairsFrom(Map<String, dynamic> seccion) {
   }
   pairs.shuffle(Random());
   return pairs;
+}
+
+// ===========================================================
+//  FRASES/PALABRAS que tienen imagen en assets/images/
+//  - Pueden ser palabras sueltas o frases de varias palabras
+//  - El nombre del archivo = frase normalizada con guiones bajos
+//  - Ej: "pista de atletismo" → assets/images/pista_de_atletismo.jpg
+// ===========================================================
+// _imageWords se carga dinámicamente desde AssetManifest.json
+// en cada pantalla que lo use — no hay lista hardcodeada.
+// Ver loadImageWords() en vnest_sentence_evaluation_screen.dart
+
+/// Normaliza texto para comparar (sin tildes, minúsculas, sin puntuación)
+String _normalize(String s) => s
+    .toLowerCase()
+    .replaceAll(RegExp(r'[áàäâ]'), 'a')
+    .replaceAll(RegExp(r'[éèëê]'), 'e')
+    .replaceAll(RegExp(r'[íìïî]'), 'i')
+    .replaceAll(RegExp(r'[óòöô]'), 'o')
+    .replaceAll(RegExp(r'[úùüû]'), 'u')
+    .replaceAll('ñ', 'n')
+    .replaceAll(RegExp(r'[^a-z\s]'), '')
+    .trim();
+
+/// Convierte frase a nombre de archivo: "pista de atletismo" → "pista_de_atletismo"
+String _toAssetName(String phrase) => _normalize(phrase).replaceAll(' ', '_');
+
+// ===========================================================
+//  TOKENIZADOR: divide la opción en segmentos
+//  Cada segmento es {text, hasImage, imageKey}
+//  Busca primero las frases más largas (para que "pista de atletismo"
+//  no se rompa en "pista", "de", "atletismo" por separado)
+// ===========================================================
+class _Segment {
+  final String text;
+  final bool hasImage;
+  final String imageKey; // nombre normalizado para el asset
+  const _Segment(this.text, {this.hasImage = false, this.imageKey = ''});
+}
+
+List<_Segment> _tokenize(String opcion) {
+  // Ordena por longitud descendente para matchear frases largas primero
+  final sorted = List<String>.from(_imageWords)
+    ..sort((a, b) => b.length.compareTo(a.length));
+
+  final normalizedOpcion = _normalize(opcion);
+  final segments = <_Segment>[];
+
+  // Trabajamos sobre el texto original pero comparamos normalizado
+  // Construimos un mapa de posición normalizada → posición original
+  // para extraer el texto con su capitalización original
+  int cursor = 0; // cursor sobre normalizedOpcion
+
+  while (cursor < normalizedOpcion.length) {
+    bool found = false;
+
+    for (final phrase in sorted) {
+      final normPhrase = _normalize(phrase);
+      if (normalizedOpcion.startsWith(normPhrase, cursor)) {
+        // Extraemos el texto original correspondiente
+        final original = opcion.substring(cursor, cursor + normPhrase.length);
+        segments.add(_Segment(
+          original,
+          hasImage: true,
+          imageKey: _toAssetName(phrase),
+        ));
+        cursor += normPhrase.length;
+        // Consume espacio siguiente si hay
+        if (cursor < normalizedOpcion.length && normalizedOpcion[cursor] == ' ') {
+          cursor++;
+          // Agrega el espacio al segmento anterior es complicado,
+          // mejor lo manejamos en el render con ' ' entre segmentos
+        }
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      // Acumula caracteres hasta el próximo match o fin
+      final start = cursor;
+      while (cursor < normalizedOpcion.length) {
+        bool willMatch = false;
+        for (final phrase in sorted) {
+          if (normalizedOpcion.startsWith(_normalize(phrase), cursor)) {
+            willMatch = true;
+            break;
+          }
+        }
+        if (willMatch) break;
+        cursor++;
+      }
+      final rawText = opcion.substring(start, cursor).trimRight();
+      if (rawText.isNotEmpty) {
+        segments.add(_Segment(rawText));
+      }
+      // consume espacio
+      if (cursor < normalizedOpcion.length && normalizedOpcion[cursor] == ' ') {
+        cursor++;
+      }
+    }
+  }
+
+  return segments;
+}
+
+// ===========================================================
+//  DIALOG con la imagen
+// ===========================================================
+void _showImageDialog(BuildContext context, String imageKey) {
+  final path = "assets/images/$imageKey.png";
+  final size = MediaQuery.of(context).size;
+
+  showDialog(
+    context: context,
+    builder: (_) => Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: SizedBox(
+        width: size.width * 0.85,
+        height: size.height * 0.70,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Expanded(
+                child: Image.asset(
+                  path,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Text("Imagen no disponible"),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFE8DD),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text(
+                    "Cerrar",
+                    style: TextStyle(
+                      color: Color(0xFFF48A63),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// ===========================================================
+//  WIDGET: texto con segmentos, algunos con imagen
+//  - Segmento con imagen: línea siempre visible abajo,
+//    al hacer hover la línea se vuelve más gruesa/oscura
+//  - Tap en segmento con imagen: SOLO abre dialog (no selecciona)
+//  - Tap fuera (en el InkWell padre): selecciona opción
+// ===========================================================
+class _HoverableImageWord extends StatefulWidget {
+  final String text;
+  final Color textColor;
+  final bool isSelected;
+  final void Function(String imageKey) onImageTap;
+
+  const _HoverableImageWord({
+    required this.text,
+    required this.textColor,
+    required this.isSelected,
+    required this.onImageTap,
+  });
+
+  @override
+  State<_HoverableImageWord> createState() => _HoverableImageWordState();
+}
+
+class _HoverableImageWordState extends State<_HoverableImageWord> {
+  String? _hoveringKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final segments = _tokenize(widget.text);
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: _buildSegmentWidgets(segments),
+    );
+  }
+
+  List<Widget> _buildSegmentWidgets(List<_Segment> segments) {
+    final widgets = <Widget>[];
+
+    for (int i = 0; i < segments.length; i++) {
+      final seg = segments[i];
+      final isLast = i == segments.length - 1;
+      final displayText = isLast ? seg.text : '${seg.text} ';
+
+      if (!seg.hasImage) {
+        // Texto plano, sin interacción especial
+        widgets.add(Text(
+          displayText,
+          style: TextStyle(
+            color: widget.textColor,
+            fontWeight: widget.isSelected ? FontWeight.w700 : FontWeight.w500,
+            fontSize: 15,
+            height: 1.3,
+          ),
+        ));
+      } else {
+        // Segmento con imagen
+        final isHovering = _hoveringKey == seg.imageKey;
+
+        widgets.add(
+          MouseRegion(
+            onEnter: (_) => setState(() => _hoveringKey = seg.imageKey),
+            onExit: (_) => setState(() => _hoveringKey = null),
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              // HitTestBehavior.opaque: consume el tap aquí,
+              // NO lo pasa al InkWell padre → no activa verde/rojo
+              behavior: HitTestBehavior.opaque,
+              onTap: () => widget.onImageTap(seg.imageKey),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 3),
+                decoration: BoxDecoration(
+                  color: isHovering
+                      ? Colors.amber.withOpacity(0.35)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: widget.textColor.withOpacity(0.5),
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  displayText,
+                  style: TextStyle(
+                    color: widget.textColor,
+                    fontWeight: widget.isSelected ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 15,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    return widgets;
+  }
 }
 
 /// =============================
@@ -216,7 +503,6 @@ class VnestStepScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
           child: Column(
             children: [
-              // Paso
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -229,8 +515,6 @@ class VnestStepScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-
-              // Barra de progreso (similar estilo)
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
@@ -240,24 +524,15 @@ class VnestStepScreen extends StatelessWidget {
                   minHeight: 8,
                 ),
               ),
-
               const SizedBox(height: 18),
-
-              // Instrucciones
               _buildInstructionsBox(step),
-
               const SizedBox(height: 18),
-
-              // Tarjetas ¿Quién? Verbo ¿Qué?
               _headerCards(accent),
-
               const SizedBox(height: 24),
-
-              // Contenido scrollable
               Expanded(
                 child: ListView(
                   children: [
-                    _questionSection(selectedPair),
+                    _questionSection(context, selectedPair),
                     if (selectedPair.explicacion.isNotEmpty)
                       Container(
                         margin: const EdgeInsets.only(top: 8, bottom: 18),
@@ -282,8 +557,6 @@ class VnestStepScreen extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Feedback de validación
               if (feedback != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
@@ -296,8 +569,6 @@ class VnestStepScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-
-              // Oración construida
               Container(
                 margin: const EdgeInsets.only(top: 6, bottom: 10),
                 padding: const EdgeInsets.all(16),
@@ -327,8 +598,6 @@ class VnestStepScreen extends StatelessWidget {
                   lineHeight: 1.3,
                 ),
               ),
-
-              // Botones Anterior / Siguiente
               Row(
                 children: [
                   Expanded(
@@ -393,21 +662,16 @@ class VnestStepScreen extends StatelessWidget {
         text = "Elige ¿Cuándo? (tiempo)";
         break;
     }
-
     return Text(
       text,
-      style: TextStyle(
-        fontSize: 16,
-        color: Colors.grey.shade800,
-        height: 1.4,
-      ),
+      style: TextStyle(fontSize: 16, color: Colors.grey.shade800, height: 1.4),
     );
   }
 
   Widget _headerCards(Color accent) {
     final verboConjugado = conjugatePresentIndicative(who, verbo);
 
-    Widget _wordCard(String label, String text, {bool isVerb = false}) {
+    Widget wordCard(String label, String text, {bool isVerb = false}) {
       return Expanded(
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 6),
@@ -455,18 +719,17 @@ class VnestStepScreen extends StatelessWidget {
 
     return Row(
       children: [
-        _wordCard("¿Quién?", capitalize(who)),
-        _wordCard("Verbo", verboConjugado, isVerb: true),
-        _wordCard("¿Qué?", decapitalize(what)),
+        wordCard("¿Quién?", capitalize(who)),
+        wordCard("Verbo", verboConjugado, isVerb: true),
+        wordCard("¿Qué?", decapitalize(what)),
       ],
     );
   }
 
-  Widget _questionSection(ExpansionPair selectedPair) {
+  Widget _questionSection(BuildContext context, ExpansionPair selectedPair) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Título + icono
         Row(
           children: [
             CircleAvatar(
@@ -487,7 +750,6 @@ class VnestStepScreen extends StatelessWidget {
         ),
         const SizedBox(height: 14),
 
-        // Opciones
         ...pairs.map((p) {
           final isSelected = selectedValue == p.opcion;
           final isCorrect = isSelected && p.opcion == correctValue;
@@ -511,8 +773,10 @@ class VnestStepScreen extends StatelessWidget {
             textColor = Colors.red.shade900;
           }
 
-          return GestureDetector(
+          return InkWell(
+            // ✅ El InkWell maneja la selección (verde/rojo)
             onTap: () => onSelect(p.opcion),
+            borderRadius: BorderRadius.circular(18),
             child: Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(14),
@@ -531,14 +795,12 @@ class VnestStepScreen extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      p.opcion,
-                      style: TextStyle(
-                        color: textColor,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        fontSize: 15,
-                        height: 1.3,
-                      ),
+                    child: _HoverableImageWord(
+                      text: p.opcion,
+                      textColor: textColor,
+                      isSelected: isSelected,
+                      // ✅ onImageTap solo abre el dialog, NO llama onSelect
+                      onImageTap: (imageKey) => _showImageDialog(context, imageKey),
                     ),
                   ),
                   if (isCorrect)
@@ -567,7 +829,6 @@ class VnestWhereScreen extends StatefulWidget {
 }
 
 class _VnestWhereScreenState extends State<VnestWhereScreen> {
-  // 🎨 misma paleta que VnestSelectContextScreen
   final orange = const Color(0xFFF48A63);
 
   List<ExpansionPair> dondePairs = [];
@@ -581,6 +842,7 @@ class _VnestWhereScreenState extends State<VnestWhereScreen> {
   @override
   void initState() {
     super.initState();
+    _loadImageWords(setState);
     final ex = Map<String, dynamic>.from(widget.data);
     verbo = ex['verbo'] ?? '';
     who = ex['who'] ?? '';
@@ -673,7 +935,7 @@ class _VnestWhyScreenState extends State<VnestWhyScreen> {
     correctDonde = ex['correctDonde'];
 
     final expansiones = _pickExpansiones(ex, who, what);
-    final porque = _asMap(expansiones['por_que']); // importante: 'por_que'
+    final porque = _asMap(expansiones['por_que']);
 
     correctPorque = porque['opcion_correcta'];
     porquePairs = _makePairsFrom(porque);

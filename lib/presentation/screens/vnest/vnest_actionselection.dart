@@ -365,40 +365,88 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
   }
 
   Widget _buildOptionButton(
-      String text, bool isSelected, Function(String) onSelect) {
-    return GestureDetector(
-      onTap: () => onSelect(text),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        height: 56,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFFE8DD) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? orange : Colors.grey.shade300,
-            width: 1.6,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: isSelected ? orange : Colors.black87,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            fontSize: 16,
-            height: 1.2,
-          ),
+  String text,
+  bool isSelected,
+  Function(String) onSelect,
+) {
+  final imagePath = getImagePath(text);
+
+  return GestureDetector(
+    onTap: () => onSelect(text),
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isSelected ? const Color(0xFFFFE8DD) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSelected ? orange : Colors.grey.shade300,
+          width: 1.6,
         ),
       ),
-    );
-  }
+      child: Row(
+        children: [
+          // 🔹 Texto
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: isSelected ? orange : Colors.black87,
+                fontWeight:
+                    isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 16,
+              ),
+            ),
+          ),
+
+          // 🔹 Icono de imagen
+          IconButton(
+            icon: const Icon(Icons.image_outlined),
+            color: Colors.grey,
+            onPressed: () {
+              _showImageDialog(imagePath);
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+  String getImagePath(String text) {
+  final normalized = text
+      .toLowerCase()
+      .replaceAll(" ", "_")
+      .replaceAll("á", "a")
+      .replaceAll("é", "e")
+      .replaceAll("í", "i")
+      .replaceAll("ó", "o")
+      .replaceAll("ú", "u")
+      .replaceAll("ñ", "n");
+
+  return "assets/images/$normalized.png";
+}
+
+void _showImageDialog(String imagePath) {
+  showDialog(
+    context: context,
+    builder: (context) {
+      return Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Image.asset(
+            imagePath,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return const Text("Imagen no disponible");
+            },
+          ),
+        ),
+      );
+    },
+  );
+}
 }

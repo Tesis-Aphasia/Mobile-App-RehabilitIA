@@ -21,7 +21,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
   List<Map<String, dynamic>> cards = [];
   Map<String, dynamic>? currentCard;
   Map<String, dynamic>? cardState;
-  String mode = "question"; // question | timer | doneCard
+  String mode = "question";
   String feedback = "";
   int secondsLeft = 0;
   TextEditingController answerCtrl = TextEditingController();
@@ -41,14 +41,239 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     });
   }
 
+  // ── Normalización ────────────────────────────────────────────
+
+  String _normalizeToken(String s) {
+    var v = s.toLowerCase().trim();
+    for (final pair in [
+      ['á', 'a'], ['é', 'e'], ['í', 'i'], ['ó', 'o'], ['ú', 'u'], ['ñ', 'n']
+    ]) {
+      v = v.replaceAll(pair[0], pair[1]);
+    }
+    return v.replaceAll(RegExp(r'[^a-z]'), '');
+  }
+
+  // ── Helpers de imagen ────────────────────────────────────────
+
+  String? _getRtaImageUrl() {
+    final imagenes = currentCard?["imagenes"];
+    if (imagenes == null || imagenes is! Map) return null;
+    for (final key in imagenes.keys) {
+      if (key.toString().endsWith("_rta")) {
+        return imagenes[key]?["url"] as String?;
+      }
+    }
+    return null;
+  }
+
+  /// Abre modal popup con la imagen — igual que _ClickableWord
+  void _showHintModal(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 20)
+                  ],
+                ),
+                padding: const EdgeInsets.all(24),
+                child: Image.network(
+                  imageUrl,
+                  height: 200,
+                  width: 200,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                      Icons.image_not_supported,
+                      size: 60,
+                      color: Colors.grey),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "Toca para cerrar",
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.8), fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Botón de pista reutilizable
+  Widget _buildHintButton(String imageUrl) {
+    return GestureDetector(
+      onTap: () => _showHintModal(context, imageUrl),
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF3E0),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: orange.withOpacity(0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("💡", style: TextStyle(fontSize: 16)),
+            const SizedBox(width: 6),
+            Text(
+              "Ver pista",
+              style: TextStyle(
+                  color: orange,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImage(String url, {double size = 130}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Image.network(
+        url,
+        height: size,
+        width: size,
+        fit: BoxFit.contain,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return SizedBox(
+            height: size,
+            width: size,
+            child: Center(
+              child: CircularProgressIndicator(
+                color: orange,
+                strokeWidth: 2,
+                value: progress.expectedTotalBytes != null
+                    ? progress.cumulativeBytesLoaded /
+                        progress.expectedTotalBytes!
+                    : null,
+              ),
+            ),
+          );
+        },
+        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      ),
+    );
+  }
+
+  Map<String, String> _buildTokenUrlMap(String pregunta) {
+    final imagenes = currentCard?["imagenes"];
+    if (imagenes == null || imagenes is! Map) return {};
+
+    final Map<String, String> tokenToUrl = {};
+    final preguntaTokens = pregunta.split(' ');
+
+    for (final entry in (imagenes as Map).entries) {
+      final url = entry.value?["url"] as String?;
+      final word = entry.value?["word"] as String?;
+      if (url == null || word == null) continue;
+
+      final wordTokens = word
+          .toLowerCase()
+          .split(' ')
+          .map(_normalizeToken)
+          .where((t) => t.length > 2)
+          .toList();
+
+      for (final rawPregToken in preguntaTokens) {
+        final pregToken = _normalizeToken(rawPregToken);
+        if (pregToken.length <= 2) continue;
+
+        for (final wt in wordTokens) {
+          final root = wt.length >= 3 ? wt.substring(0, 3) : wt;
+          if (pregToken == wt || pregToken.startsWith(root)) {
+            tokenToUrl[pregToken] = url;
+            break;
+          }
+        }
+      }
+    }
+
+    return tokenToUrl;
+  }
+
+  Widget _buildClickablePregunta(String pregunta) {
+    final tokenToUrl = _buildTokenUrlMap(pregunta);
+
+    if (tokenToUrl.isEmpty) {
+      return Text(
+        pregunta,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Colors.black87),
+      );
+    }
+
+    final words = pregunta.split(' ');
+    final List<InlineSpan> spans = [];
+
+    for (int i = 0; i < words.length; i++) {
+      final rawWord = words[i];
+      final cleanToken = _normalizeToken(rawWord);
+      final imageUrl = tokenToUrl[cleanToken];
+
+      if (imageUrl != null) {
+        spans.add(WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: _ClickableWord(
+            word: rawWord,
+            imageUrl: imageUrl,
+            orange: orange,
+          ),
+        ));
+        if (i < words.length - 1) {
+          spans.add(
+              const TextSpan(text: ' ', style: TextStyle(fontSize: 22)));
+        }
+      } else {
+        spans.add(TextSpan(
+          text: i < words.length - 1 ? '$rawWord ' : rawWord,
+          style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87),
+        ));
+      }
+    }
+
+    return Text.rich(TextSpan(children: spans), textAlign: TextAlign.center);
+  }
+
+  // ── Voz ─────────────────────────────────────────────────────
+
   Future<void> _initSpeech() async {
     var status = await Permission.microphone.request();
     if (status.isGranted) {
       await _speech.initialize();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Por favor habilita el micrófono para usar voz.")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content:
+                  Text("Por favor habilita el micrófono para usar voz.")),
+        );
+      }
     }
   }
 
@@ -73,27 +298,27 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     setState(() => _isListening = false);
   }
 
+  // ── Cargar tarjetas ──────────────────────────────────────────
+
   Future<void> _loadCards() async {
-    final userId = Provider.of<RegisterViewModel>(context, listen: false).userId;
+    final userId =
+        Provider.of<RegisterViewModel>(context, listen: false).userId;
     if (userId == null || userId.isEmpty) {
       setState(() => loading = false);
       return;
     }
 
     try {
-      // 1. Obtener todos los ejercicios asignados
       final asignadosSnap = await FirebaseFirestore.instance
           .collection("pacientes")
           .doc(userId)
           .collection("ejercicios_asignados")
           .get();
 
-      // 2. Filtrar los que NO están completados y obtener sus IDs
       final idsAsignados = asignadosSnap.docs
           .where((d) {
-            final data = d.data();
-            final estado = data["estado"]?.toString() ?? "pendiente";
-            // Solo incluir si NO está completado
+            final estado =
+                d.data()["estado"]?.toString() ?? "pendiente";
             return estado != "completado";
           })
           .map((d) => d.data()["id_ejercicio"] as String?)
@@ -105,10 +330,10 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
         return;
       }
 
-      // 3. Buscar en ejercicios_SR
       final ejerciciosSnap = await FirebaseFirestore.instance
           .collection("ejercicios_SR")
           .where("id_ejercicio_general", whereIn: idsAsignados)
+          .where("aprobado", isEqualTo: true)
           .get();
 
       final data = ejerciciosSnap.docs
@@ -121,13 +346,11 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
         return;
       }
 
-      final first = data.first;
-
       setState(() {
         cards = data;
-        currentCard = first;
+        currentCard = data.first;
         cardState = {
-          ...first,
+          ...data.first,
           "interval_index": 0,
           "success_streak": 0,
           "lapses": 0,
@@ -141,40 +364,42 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     }
   }
 
+  // ── Lógica ───────────────────────────────────────────────────
+
   void handleSubmit() async {
     if (currentCard == null || cardState == null) return;
 
     final userAns = answerCtrl.text.trim().toLowerCase();
-    final correctAns = (currentCard!["rta_correcta"] ?? "").trim().toLowerCase();
+    final correctAns =
+        (currentCard!["rta_correcta"] ?? "").trim().toLowerCase();
     final isCorrect = userAns == correctAns;
 
     answerCtrl.clear();
     recognizedText = "";
 
     final intervals = List<int>.from(
-      currentCard!["intervals_sec"] ?? [15, 30, 60, 120, 240],
-    );
-
+        currentCard!["intervals_sec"] ?? [15, 30, 60, 120, 240]);
     final nextIndex = isCorrect
-        ? (cardState!["interval_index"] + 1).clamp(0, intervals.length - 1)
+        ? (cardState!["interval_index"] + 1)
+            .clamp(0, intervals.length - 1)
         : 0;
 
-    final updated = {
-      ...cardState!,
-      "interval_index": nextIndex,
-      "success_streak": isCorrect ? (cardState!["success_streak"] + 1) : 0,
-      "lapses": isCorrect ? cardState!["lapses"] : (cardState!["lapses"] + 1),
-      "last_answer_correct": isCorrect,
-      "next_due": DateTime.now().millisecondsSinceEpoch +
-          intervals[nextIndex] * 1000,
-    };
-
     setState(() {
-      cardState = updated;
+      cardState = {
+        ...cardState!,
+        "interval_index": nextIndex,
+        "success_streak":
+            isCorrect ? (cardState!["success_streak"] + 1) : 0,
+        "lapses": isCorrect
+            ? cardState!["lapses"]
+            : (cardState!["lapses"] + 1),
+        "last_answer_correct": isCorrect,
+        "next_due": DateTime.now().millisecondsSinceEpoch +
+            intervals[nextIndex] * 1000,
+      };
       secondsLeft = intervals[nextIndex];
-      feedback = isCorrect
-          ? "✅ ¡Correcto!"
-          : "❌ Incorrecto\nRespuesta: ${currentCard!["rta_correcta"]}";
+      // Solo feedback de correcto/incorrecto, sin revelar la respuesta
+      feedback = isCorrect ? "✅ ¡Correcto!" : "❌ Inténtalo de nuevo";
       mode = "timer";
     });
 
@@ -195,13 +420,11 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
 
   void onTimerFinished() {
     final intervals = List<int>.from(currentCard!["intervals_sec"]);
-
     if (cardState!["interval_index"] >= intervals.length - 1 &&
         cardState!["last_answer_correct"] == true) {
       setState(() => mode = "doneCard");
       return;
     }
-
     setState(() {
       mode = "question";
       feedback = "";
@@ -210,35 +433,30 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
 
   Future<void> _markExerciseAsCompleted() async {
     if (currentCard == null) return;
-    
-    final userId = Provider.of<RegisterViewModel>(context, listen: false).userId;
+    final userId =
+        Provider.of<RegisterViewModel>(context, listen: false).userId;
     if (userId == null || userId.isEmpty) return;
 
     try {
       final idEjercicioGeneral = currentCard!["id_ejercicio_general"];
-      if (idEjercicioGeneral == null || idEjercicioGeneral.toString().isEmpty) {
-        return;
-      }
+      if (idEjercicioGeneral == null ||
+          idEjercicioGeneral.toString().isEmpty) return;
 
-      final asignadosRef = FirebaseFirestore.instance
+      final query = await FirebaseFirestore.instance
           .collection("pacientes")
           .doc(userId)
-          .collection("ejercicios_asignados");
-
-      // Buscar el ejercicio asignado por id_ejercicio
-      final query = await asignadosRef
-          .where("id_ejercicio", isEqualTo: idEjercicioGeneral.toString())
+          .collection("ejercicios_asignados")
+          .where("id_ejercicio",
+              isEqualTo: idEjercicioGeneral.toString())
           .limit(1)
           .get();
 
       if (query.docs.isNotEmpty) {
-        final doc = query.docs.first;
-        await doc.reference.update({
+        await query.docs.first.reference.update({
           "estado": "completado",
           "ultima_fecha_realizado": FieldValue.serverTimestamp(),
           "veces_realizado": FieldValue.increment(1),
         });
-        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -253,9 +471,8 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Error al guardar el ejercicio"),
-            backgroundColor: Colors.red,
-          ),
+              content: Text("Error al guardar el ejercicio"),
+              backgroundColor: Colors.red),
         );
       }
     }
@@ -263,13 +480,10 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
 
   void handleNextCard() async {
     if (currentCard == null) return;
-    
-    // Marcar como completado antes de cambiar de tarjeta
     await _markExerciseAsCompleted();
-    
-    final currentIndex = cards.indexWhere((c) => c["id"] == currentCard!["id"]);
+    final currentIndex =
+        cards.indexWhere((c) => c["id"] == currentCard!["id"]);
     final nextIndex = (currentIndex + 1) % cards.length;
-
     setState(() {
       currentCard = cards[nextIndex];
       cardState = {
@@ -279,7 +493,6 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
         "lapses": 0,
         "last_answer_correct": null,
       };
-
       mode = "question";
       feedback = "";
       secondsLeft = 0;
@@ -294,17 +507,14 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     super.dispose();
   }
 
-  // ---------------------------------------
-  //                 UI
-  // ---------------------------------------
+  // ── UI ───────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     if (loading) {
       return Scaffold(
         backgroundColor: background,
-        body: Center(
-          child: CircularProgressIndicator(color: orange),
-        ),
+        body: Center(child: CircularProgressIndicator(color: orange)),
       );
     }
 
@@ -325,51 +535,40 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.check_circle_outline_rounded,
-                  size: 80,
-                  color: Colors.green.shade400,
-                ),
+                Icon(Icons.check_circle_outline_rounded,
+                    size: 80, color: Colors.green.shade400),
                 const SizedBox(height: 20),
-                const Text(
-                  "¡Todo completado! 🎉",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black87,
-                  ),
-                ),
+                const Text("¡Todo completado! 🎉",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black87)),
                 const SizedBox(height: 12),
                 Text(
-                  "No tienes ejercicios de memoria pendientes.\n\nSi tu terapeuta te asigna nuevos ejercicios,\nlos verás aquí.",
+                  "No tienes ejercicios de memoria pendientes.\n\nSi tu terapeuta te asigna nuevos, los verás aquí.",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade700,
-                    height: 1.5,
-                  ),
+                      fontSize: 16,
+                      color: Colors.grey.shade700,
+                      height: 1.5),
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: orange,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 32),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+                        borderRadius: BorderRadius.circular(20)),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    "Volver al menú",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
+                  child: const Text("Volver al menú",
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16)),
                 ),
               ],
             ),
@@ -379,13 +578,10 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     }
 
     final intervals = List<int>.from(
-      currentCard!["intervals_sec"] ?? [15, 30, 60, 120, 240],
-    );
-
+        currentCard!["intervals_sec"] ?? [15, 30, 60, 120, 240]);
     final intervalLabel = mode == "timer"
         ? "Intervalo actual: ${intervals[cardState!["interval_index"]]} s"
-        : "Próximo intervalo: ${intervals[(cardState!["interval_index"] + 1)
-            .clamp(0, intervals.length - 1)]} s";
+        : "Próximo intervalo: ${intervals[(cardState!["interval_index"] + 1).clamp(0, intervals.length - 1)]} s";
 
     return Scaffold(
       backgroundColor: background,
@@ -397,33 +593,23 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: orange),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "Recuperación Espaciada",
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.w800,
-            fontSize: 20,
-          ),
-        ),
+        title: const Text("Recuperación Espaciada",
+            style: TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.w800,
+                fontSize: 20)),
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            // Subtexto con el intervalo
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                intervalLabel,
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 14,
-                ),
-              ),
+              child: Text(intervalLabel,
+                  style: TextStyle(
+                      color: Colors.grey.shade600, fontSize: 14)),
             ),
             const SizedBox(height: 16),
-
-            // --------- CARD PRINCIPAL ----------
             Expanded(
               child: Container(
                 padding: const EdgeInsets.all(24),
@@ -432,10 +618,9 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4))
                   ],
                 ),
                 child: Center(
@@ -452,47 +637,49 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     );
   }
 
-  // ---------------------------------------
-  //       CONTENIDO SEGÚN EL MODO
-  // ---------------------------------------
   Widget _buildCardContent() {
-    if (mode == "question") {
-      return Column(
-        key: const ValueKey("question"),
+    if (mode == "question") return _buildQuestionMode();
+    if (mode == "timer") return _buildTimerMode();
+    return _buildDoneCard();
+  }
+
+  // ── Modo pregunta ────────────────────────────────────────────
+
+  Widget _buildQuestionMode() {
+    final pregunta = currentCard!["pregunta"] ?? "";
+    final rtaUrl = _getRtaImageUrl();
+
+    return SingleChildScrollView(
+      key: const ValueKey("question"),
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            currentCard!["pregunta"] ?? "",
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: Colors.black87,
-            ),
-          ),
+          _buildClickablePregunta(pregunta),
           const SizedBox(height: 22),
 
-          // Input amigable
           TextField(
             controller: answerCtrl,
             decoration: InputDecoration(
               hintText: "Escribe o di tu respuesta...",
               filled: true,
               fillColor: const Color(0xFFFFE8DD),
-              contentPadding:
-                  const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              contentPadding: const EdgeInsets.symmetric(
+                  vertical: 14, horizontal: 16),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(18),
                 borderSide: BorderSide.none,
               ),
               suffixIcon: IconButton(
                 icon: Icon(
-                  _isListening ? Icons.stop_rounded : Icons.mic_none_rounded,
-                  color: _isListening ? Colors.red : Colors.grey.shade700,
+                  _isListening
+                      ? Icons.stop_rounded
+                      : Icons.mic_none_rounded,
+                  color: _isListening
+                      ? Colors.red
+                      : Colors.grey.shade700,
                 ),
-                onPressed: () {
-                  _isListening ? _stopListening() : _startListening();
-                },
+                onPressed: () =>
+                    _isListening ? _stopListening() : _startListening(),
               ),
             ),
           ),
@@ -502,109 +689,112 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
             onPressed: handleSubmit,
             style: ElevatedButton.styleFrom(
               backgroundColor: orange,
-              padding:
-                  const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
+              padding: const EdgeInsets.symmetric(
+                  vertical: 14, horizontal: 32),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(22),
-              ),
+                  borderRadius: BorderRadius.circular(22)),
               elevation: 0,
             ),
-            child: const Text(
-              "Enviar",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
+            child: const Text("Enviar",
+                style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16)),
           ),
+
+          // Botón pista en modo pregunta
+          if (rtaUrl != null) ...[
+            const SizedBox(height: 14),
+            _buildHintButton(rtaUrl),
+          ],
 
           if (feedback.isNotEmpty) ...[
             const SizedBox(height: 14),
-            Text(
-              feedback,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: feedback.startsWith("✅")
-                    ? Colors.green.shade700
-                    : Colors.red.shade700,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text(feedback,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: feedback.startsWith("✅")
+                      ? Colors.green.shade700
+                      : Colors.red.shade700,
+                  fontWeight: FontWeight.bold,
+                )),
           ],
         ],
-      );
-    }
+      ),
+    );
+  }
 
-    if (mode == "timer") {
-      return Column(
-        key: const ValueKey("timer"),
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            feedback,
+  // ── Modo timer ───────────────────────────────────────────────
+
+  Widget _buildTimerMode() {
+    final rtaUrl = _getRtaImageUrl();
+    final isCorrect = feedback.startsWith("✅");
+
+    return Column(
+      key: const ValueKey("timer"),
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(feedback,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 20,
-              color: feedback.startsWith("✅")
+              color: isCorrect
                   ? Colors.green.shade700
                   : Colors.red.shade700,
               fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            "Repetimos esta pregunta en",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            "$secondsLeft segundos...",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: orange,
-            ),
-          ),
-        ],
-      );
-    }
+            )),
+        const SizedBox(height: 16),
 
-    // doneCard
+        // Imagen directa cuando fue correcta
+        if (rtaUrl != null && isCorrect) ...[
+          _buildImage(rtaUrl, size: 120),
+          const SizedBox(height: 16),
+        ],
+
+        // Botón pista cuando fue incorrecta (abre modal, no revela texto)
+        if (rtaUrl != null && !isCorrect) ...[
+          _buildHintButton(rtaUrl),
+          const SizedBox(height: 16),
+        ],
+
+        Text("Repetimos esta pregunta en",
+            textAlign: TextAlign.center,
+            style:
+                TextStyle(color: Colors.grey.shade700, fontSize: 15)),
+        const SizedBox(height: 6),
+        Text("$secondsLeft segundos...",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                color: orange)),
+      ],
+    );
+  }
+
+  // ── Done card ────────────────────────────────────────────────
+
+  Widget _buildDoneCard() {
     return Column(
       key: const ValueKey("doneCard"),
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(
-          Icons.check_circle_rounded,
-          color: Colors.green.shade600,
-          size: 80,
-        ),
+        Icon(Icons.check_circle_rounded,
+            color: Colors.green.shade600, size: 80),
         const SizedBox(height: 20),
-        const Text(
-          "¡Ejercicio Completado!",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: Colors.black87,
-          ),
-        ),
+        const Text("¡Ejercicio Completado!",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: Colors.black87)),
         const SizedBox(height: 12),
-        Text(
-          "Has completado todos los intervalos de esta tarjeta.",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 15,
-            color: Colors.grey.shade700,
-            height: 1.4,
-          ),
-        ),
+        Text("Has completado todos los intervalos de esta tarjeta.",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 15,
+                color: Colors.grey.shade700,
+                height: 1.4)),
         const SizedBox(height: 28),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -614,43 +804,145 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.grey.shade200,
                 foregroundColor: Colors.black87,
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+                padding: const EdgeInsets.symmetric(
+                    vertical: 14, horizontal: 24),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22),
-                ),
+                    borderRadius: BorderRadius.circular(22)),
                 elevation: 0,
               ),
-              child: const Text(
-                "Volver al menú",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
+              child: const Text("Volver al menú",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 15)),
             ),
             const SizedBox(width: 12),
             ElevatedButton(
               onPressed: handleNextCard,
               style: ElevatedButton.styleFrom(
                 backgroundColor: orange,
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+                padding: const EdgeInsets.symmetric(
+                    vertical: 14, horizontal: 24),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22),
-                ),
+                    borderRadius: BorderRadius.circular(22)),
                 elevation: 0,
               ),
-              child: const Text(
-                "Siguiente ejercicio",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
+              child: const Text("Siguiente ejercicio",
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15)),
             ),
           ],
         ),
       ],
+    );
+  }
+}
+
+// ── Widget palabra tocable ───────────────────────────────────
+
+class _ClickableWord extends StatefulWidget {
+  final String word;
+  final String imageUrl;
+  final Color orange;
+
+  const _ClickableWord({
+    required this.word,
+    required this.imageUrl,
+    required this.orange,
+  });
+
+  @override
+  State<_ClickableWord> createState() => _ClickableWordState();
+}
+
+class _ClickableWordState extends State<_ClickableWord> {
+  bool _pressed = false;
+
+  void _showImageModal(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: GestureDetector(
+          onTap: () => Navigator.pop(context),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 20)
+                  ],
+                ),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    Image.network(
+                      widget.imageUrl,
+                      height: 200,
+                      width: 200,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                          Icons.image_not_supported,
+                          size: 60,
+                          color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      widget.word
+                          .replaceAll(RegExp(r'[¿?¡!.,;:]'), ''),
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: widget.orange),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text("Toca para cerrar",
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 13)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        _showImageModal(context);
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: Text(
+        widget.word,
+        style: TextStyle(
+          fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: _pressed
+                ? Colors.black87          // oscurece al presionar
+                : Colors.black54,         // gris normal
+            decoration: TextDecoration.underline,
+            decorationColor: _pressed
+                ? const Color(0xFFFFEB3B) // amarillo al presionar
+                : Colors.black38,         // gris suave normal
+            decorationThickness: 2,
+            decorationStyle: TextDecorationStyle.solid,
+          ),
+        ),
+      
     );
   }
 }
