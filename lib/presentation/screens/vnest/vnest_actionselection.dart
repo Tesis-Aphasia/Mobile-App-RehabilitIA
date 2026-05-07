@@ -1,5 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'vnest_shared_widgets.dart'; 
+
 
 class VnestActionSelectionScreen extends StatefulWidget {
   final Map<String, dynamic> exercise;
@@ -11,15 +13,15 @@ class VnestActionSelectionScreen extends StatefulWidget {
       _VnestActionSelectionScreenState();
 }
 
-class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen> {
-  // 🎨 Mismo estilo Rehabilita
+class _VnestActionSelectionScreenState
+    extends State<VnestActionSelectionScreen> {
   final background = const Color(0xFFFFF7F2);
   final orange = const Color(0xFFF48A63);
   final darkText = const Color(0xFF222222);
 
   late String verbo;
-  late List<String> sujetos;
-  late List<String> objetos;
+  late List<_WordOption> sujetos;
+  late List<_WordOption> objetos;
   late Set<String> validPairs;
 
   String? selectedWho;
@@ -30,24 +32,88 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
   void initState() {
     super.initState();
     final exercise = widget.exercise;
-    verbo = exercise['verbo'] ?? 'Acción';
+
+    // ── Verbo ──────────────────────────────────────────────
+    final verboRaw = exercise['verbo'];
+    verbo = (verboRaw is Map)
+        ? (verboRaw['word'] as String? ?? '')
+        : (verboRaw as String? ?? 'Acción');
+
+    // ── Pares ──────────────────────────────────────────────
     final pares = (exercise['pares'] as List?) ?? [];
 
-    final s = <String>{};
-    final o = <String>{};
+    // ── Imagenes (mapa plano de Firebase) ──────────────────
+    // Estructura: { "pares_0_sujeto": { "url": "...", "word": "..." }, ... }
+    final imagenes = _asMap(exercise['imagenes']);
+
+    final seenSujetos = <String>{};
+    final seenObjetos = <String>{};
+    final sujetosList = <_WordOption>[];
+    final objetosList = <_WordOption>[];
     final vp = <String>{};
-    for (final p in pares) {
-      final sujeto = p['sujeto'];
-      final objeto = p['objeto'];
-      if (sujeto != null) s.add(sujeto);
-      if (objeto != null) o.add(objeto);
-      if (sujeto != null && objeto != null) vp.add('$sujeto|||$objeto');
+
+    for (int i = 0; i < pares.length; i++) {
+      final p = pares[i];
+      final sujeto = p['sujeto'] as String?;
+      final objeto = p['objeto'] as String?;
+
+      if (sujeto != null && !seenSujetos.contains(sujeto)) {
+        seenSujetos.add(sujeto);
+        // Buscar URL: primero por clave compuesta, luego fallback por word
+        final url = _getUrlFromImagenes(imagenes, i, 'sujeto') ??
+            _getUrlByWord(imagenes, sujeto);
+        sujetosList.add(_WordOption(word: sujeto, imageUrl: url));
+      }
+
+      if (objeto != null && !seenObjetos.contains(objeto)) {
+        seenObjetos.add(objeto);
+        final url = _getUrlFromImagenes(imagenes, i, 'objeto') ??
+            _getUrlByWord(imagenes, objeto);
+        objetosList.add(_WordOption(word: objeto, imageUrl: url));
+      }
+
+      if (sujeto != null && objeto != null) {
+        vp.add('$sujeto|||$objeto');
+      }
     }
 
-    sujetos = _shuffle(s.toList());
-    objetos = _shuffle(o.toList());
+    sujetos = _shuffle(sujetosList);
+    objetos = _shuffle(objetosList);
     validPairs = vp;
   }
+
+  // ── Helpers de imagen ────────────────────────────────────
+
+  /// Busca por clave compuesta: "pares_#_sujeto" o "pares_#_objeto"
+  String? _getUrlFromImagenes(
+      Map<String, dynamic> imagenes, int index, String tipo) {
+    final key = 'pares_${index}_$tipo';
+    final entry = imagenes[key];
+    if (entry is Map) return entry['url'] as String?;
+    return null;
+  }
+
+  /// Fallback: recorre el mapa buscando coincidencia por 'word' o 'key'
+  String? _getUrlByWord(Map<String, dynamic> imagenes, String word) {
+    final normalized = word.replaceAll(' ', '_');
+    // Intento directo por clave normalizada
+    final direct = imagenes[normalized] ?? imagenes[word];
+    if (direct is Map) return direct['url'] as String?;
+    // Búsqueda por campo 'word' o 'key'
+    for (final entry in imagenes.values) {
+      if (entry is Map) {
+        if (entry['word'] == word ||
+            entry['key'] == word ||
+            entry['key'] == normalized) {
+          return entry['url'] as String?;
+        }
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _asMap(dynamic v) =>
+      (v is Map) ? Map<String, dynamic>.from(v) : {};
 
   List<T> _shuffle<T>(List<T> items) {
     final rand = Random();
@@ -60,6 +126,8 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
     return items;
   }
 
+  // ── Lógica de navegación ────────────────────────────────
+
   bool get pairIsValid {
     if (selectedWho == null || selectedWhat == null) return false;
     return validPairs.contains('$selectedWho|||$selectedWhat');
@@ -67,19 +135,125 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
 
   void handleNext() {
     if (!pairIsValid) return;
-
-    final Map<String, dynamic> args = {
-      "who": selectedWho ?? "",
-      "what": selectedWhat ?? "",
-      "verbo": verbo,
-      "pares": widget.exercise["pares"],
-      "oraciones": widget.exercise["oraciones"],
-      "context": widget.exercise["context"],
-      "id_ejercicio_general": widget.exercise["id_ejercicio_general"],
-    };
-
-    Navigator.pushNamed(context, '/vnest-phase2', arguments: args);
+    Navigator.pushNamed(
+      context,
+      '/vnest-phase2',
+      arguments: {
+        "who": selectedWho ?? "",
+        "what": selectedWhat ?? "",
+        "verbo": verbo,
+        "pares": widget.exercise["pares"],
+        "imagenes": widget.exercise["imagenes"],
+        "oraciones": widget.exercise["oraciones"],
+        "context": widget.exercise["context"],
+        "id_ejercicio_general": widget.exercise["id_ejercicio_general"],
+      },
+    );
   }
+
+  // ── Modal de imagen ─────────────────────────────────────
+
+  void _showImageDialog(String word, String? imageUrl) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding:
+            const EdgeInsets.symmetric(horizontal: 32, vertical: 60),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // ── Imagen desde Firebase ──
+                    if (imageUrl != null)
+                      Image.network(
+                        imageUrl,
+                        fit: BoxFit.contain,
+                        height: 220,
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return SizedBox(
+                            height: 220,
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: orange,
+                                value: progress.expectedTotalBytes != null
+                                    ? progress.cumulativeBytesLoaded /
+                                        progress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (_, __, ___) => _noImagePlaceholder(),
+                      )
+                    else
+                      _noImagePlaceholder(),
+                    const SizedBox(height: 12),
+                    Text(
+                      _capitalize(word),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 32, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Text(
+                  "Cerrar",
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, color: Colors.black87),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _noImagePlaceholder() => SizedBox(
+        height: 220,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.broken_image_rounded,
+                  color: Colors.grey.shade400, size: 48),
+              const SizedBox(height: 8),
+              Text(
+                "Imagen no disponible",
+                style:
+                    TextStyle(color: Colors.grey.shade500, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  String _capitalize(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+  // ── Build ────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +282,6 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Progreso
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -133,13 +306,13 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
               const SizedBox(height: 16),
               _buildInstructions(),
               if (showExpandedInfo) _buildExpandedInfo(),
-
               const SizedBox(height: 20),
 
               // Verbo central
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                    vertical: 20, horizontal: 16),
                 decoration: BoxDecoration(
                   color: orange,
                   borderRadius: BorderRadius.circular(24),
@@ -165,7 +338,7 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
 
               const SizedBox(height: 24),
 
-              // Columnas de selección
+              // Columnas ¿Quién? / ¿Qué?
               Expanded(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,7 +348,8 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
                         title: "¿Quién?",
                         options: sujetos,
                         selectedValue: selectedWho,
-                        onSelect: (s) => setState(() => selectedWho = s),
+                        onSelect: (s) =>
+                            setState(() => selectedWho = s),
                       ),
                     ),
                     const SizedBox(width: 18),
@@ -184,14 +358,15 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
                         title: "¿Qué?",
                         options: objetos,
                         selectedValue: selectedWhat,
-                        onSelect: (s) => setState(() => selectedWhat = s),
+                        onSelect: (s) =>
+                            setState(() => selectedWhat = s),
                       ),
                     ),
                   ],
                 ),
               ),
 
-              // Error message
+              // Error de combinación inválida
               if (selectedWho != null &&
                   selectedWhat != null &&
                   !pairIsValid) ...[
@@ -202,7 +377,8 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
                   decoration: BoxDecoration(
                     color: Colors.red.shade50,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.red.shade200, width: 1),
+                    border: Border.all(
+                        color: Colors.red.shade200, width: 1),
                   ),
                   child: Row(
                     children: [
@@ -226,7 +402,7 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
 
               const SizedBox(height: 12),
 
-              // Botones
+              // Botones Anterior / Siguiente
               Row(
                 children: [
                   Expanded(
@@ -236,7 +412,8 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
                         backgroundColor: Colors.grey.shade200,
                         foregroundColor: Colors.black87,
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
@@ -244,9 +421,7 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
                       child: const Text(
                         "Anterior",
                         style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
+                            fontWeight: FontWeight.w700, fontSize: 16),
                       ),
                     ),
                   ),
@@ -255,11 +430,14 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
                     child: ElevatedButton(
                       onPressed: pairIsValid ? handleNext : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            pairIsValid ? orange : orange.withOpacity(0.4),
-                        disabledBackgroundColor: orange.withOpacity(0.4),
+                        backgroundColor: pairIsValid
+                            ? orange
+                            : orange.withOpacity(0.4),
+                        disabledBackgroundColor:
+                            orange.withOpacity(0.4),
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
@@ -283,6 +461,8 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
     );
   }
 
+  // ── Widgets auxiliares ───────────────────────────────────
+
   Widget _buildInstructions() => Row(
         children: [
           Expanded(
@@ -297,7 +477,8 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: () => setState(() => showExpandedInfo = !showExpandedInfo),
+            onTap: () =>
+                setState(() => showExpandedInfo = !showExpandedInfo),
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
@@ -334,7 +515,7 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
 
   Widget _buildColumnSelector({
     required String title,
-    required List<String> options,
+    required List<_WordOption> options,
     required String? selectedValue,
     required Function(String) onSelect,
   }) {
@@ -355,7 +536,7 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
             itemCount: options.length,
             itemBuilder: (context, index) {
               final item = options[index];
-              final isSelected = selectedValue == item;
+              final isSelected = selectedValue == item.word;
               return _buildOptionButton(item, isSelected, onSelect);
             },
           ),
@@ -365,88 +546,62 @@ class _VnestActionSelectionScreenState extends State<VnestActionSelectionScreen>
   }
 
   Widget _buildOptionButton(
-  String text,
-  bool isSelected,
-  Function(String) onSelect,
-) {
-  final imagePath = getImagePath(text);
-
-  return GestureDetector(
-    onTap: () => onSelect(text),
-    child: Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFFFFE8DD) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isSelected ? orange : Colors.grey.shade300,
-          width: 1.6,
+    _WordOption option,
+    bool isSelected,
+    Function(String) onSelect,
+  ) {
+    return GestureDetector(
+      onTap: () => onSelect(option.word),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFFFE8DD) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? orange : Colors.grey.shade300,
+            width: 1.6,
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          // 🔹 Texto
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: isSelected ? orange : Colors.black87,
-                fontWeight:
-                    isSelected ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 16,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                option.word,
+                style: TextStyle(
+                  color: isSelected ? orange : Colors.black87,
+                  fontWeight:
+                      isSelected ? FontWeight.w700 : FontWeight.w500,
+                  fontSize: 15,
+                  height: 1.3,
+                ),
               ),
             ),
-          ),
-
-          // 🔹 Icono de imagen
-          IconButton(
-            icon: const Icon(Icons.image_outlined),
-            color: Colors.grey,
-            onPressed: () {
-              _showImageDialog(imagePath);
-            },
-          ),
-        ],
+            // ── Ícono de imagen con URL de Firebase ──
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _showImageDialog(option.word, option.imageUrl),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Icon(
+                  Icons.image_outlined,
+                  size: 22,
+                  color: option.imageUrl != null
+                      ? orange.withOpacity(0.7)
+                      : Colors.grey.shade300,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
-  String getImagePath(String text) {
-  final normalized = text
-      .toLowerCase()
-      .replaceAll(" ", "_")
-      .replaceAll("á", "a")
-      .replaceAll("é", "e")
-      .replaceAll("í", "i")
-      .replaceAll("ó", "o")
-      .replaceAll("ú", "u")
-      .replaceAll("ñ", "n");
-
-  return "assets/images/$normalized.png";
-}
-
-void _showImageDialog(String imagePath) {
-  showDialog(
-    context: context,
-    builder: (context) {
-      return Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Image.asset(
-            imagePath,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return const Text("Imagen no disponible");
-            },
-          ),
-        ),
-      );
-    },
-  );
-}
+/// Modelo interno: palabra + URL de imagen de Firebase
+class _WordOption {
+  final String word;
+  final String? imageUrl;
+  const _WordOption({required this.word, this.imageUrl});
 }

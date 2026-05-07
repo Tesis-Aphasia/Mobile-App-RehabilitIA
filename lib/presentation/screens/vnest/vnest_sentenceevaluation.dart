@@ -1,28 +1,29 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:cached_network_image/cached_network_image.dart';
 
 // ===========================================================
-//  PALABRAS con imagen: se leen dinámicamente del pubspec.yaml
-//  Convierte "pista_de_atletismo.png" → "pista de atletismo"
-//  Así no hay lista hardcodeada — agrega un PNG a assets/images/
-//  y automáticamente se reconoce en el texto.
+//  VnestSentenceEvaluationScreen
+//
+//  Las imágenes se cargan desde URLs de Firebase Storage
+//  almacenadas en el campo "imagenes" del documento Firestore.
+//  No se usan assets locales (AssetManifest.json).
+//
+//  El campo "imagenes" tiene la estructura:
+//    imagenes: {
+//      verbo:               { word, key, url }
+//      pares_0_sujeto:      { word, key, url }
+//      pares_0_objeto:      { word, key, url }
+//      pares_0_donde_correcta: { word, key, url }
+//      ...
+//    }
+//
+//  Se construye un mapa { palabra_normalizada → url } para
+//  tokenizar las oraciones y mostrar imágenes al tocar.
 // ===========================================================
-List<String> _imageWords = [];
 
-Future<void> _loadImageWords(void Function(VoidCallback) setState) async {
-  if (_imageWords.isNotEmpty) return;
-  try {
-    final manifest = await rootBundle.loadString('AssetManifest.json');
-    final regex = RegExp(r'assets/images/([^"]+)\.png');
-    final matches = regex.allMatches(manifest);
-    final words = matches
-        .map((m) => m.group(1)!.replaceAll('_', ' '))
-        .toList();
-    words.sort((a, b) => b.length.compareTo(a.length));
-    setState(() => _imageWords = words);
-  } catch (_) {}
-}
+// ── Mapa global palabra(normalizada) → URL de Firebase ─────
+Map<String, String> _imageUrlMap = {};
 
 String _normalize(String s) => s
     .toLowerCase()
@@ -35,7 +36,51 @@ String _normalize(String s) => s
     .replaceAll(RegExp(r'[^a-z\s]'), '')
     .trim();
 
-String _toAssetName(String phrase) => _normalize(phrase).replaceAll(' ', '_');
+// ===========================================================
+//  Construye el mapa desde el campo "imagenes" del documento
+//  Firestore. Llamar desde initState() de la pantalla.
+// ===========================================================
+void _buildImageUrlMap(Map<String, dynamic> ejercicioData) {
+  final Map<String, String> newMap = {};
+
+  final imagenes = ejercicioData['imagenes'];
+  if (imagenes is Map) {
+    for (final entry in imagenes.entries) {
+      final val = entry.value;
+      if (val is Map) {
+        final word = val['word']?.toString();
+        final url = val['url']?.toString();
+        if (word != null &&
+            word.isNotEmpty &&
+            url != null &&
+            url.isNotEmpty) {
+          newMap[_normalize(word)] = url;
+        }
+      }
+    }
+  }
+
+  // Soporte para estructura alternativa con campo "pares"
+  final pares = ejercicioData['pares'];
+  if (pares is List) {
+    for (final par in pares) {
+      if (par is! Map) continue;
+      void extract(dynamic field) {
+        if (field is Map) {
+          final w = field['word']?.toString();
+          final u = field['url']?.toString();
+          if (w != null && w.isNotEmpty && u != null && u.isNotEmpty) {
+            newMap[_normalize(w)] = u;
+          }
+        }
+      }
+      extract(par['sujeto']);
+      extract(par['objeto']);
+    }
+  }
+
+  _imageUrlMap = newMap;
+}
 
 // ===========================================================
 //  SEGMENTO: trozo de texto, con o sin imagen
@@ -43,12 +88,12 @@ String _toAssetName(String phrase) => _normalize(phrase).replaceAll(' ', '_');
 class _Segment {
   final String text;
   final bool hasImage;
-  final String imageKey;
-  const _Segment(this.text, {this.hasImage = false, this.imageKey = ''});
+  final String imageUrl;
+  const _Segment(this.text, {this.hasImage = false, this.imageUrl = ''});
 }
 
 List<_Segment> _tokenize(String text) {
-  final sorted = List<String>.from(_imageWords)
+  final knownWords = _imageUrlMap.keys.toList()
     ..sort((a, b) => b.length.compareTo(a.length));
 
   final normalizedText = _normalize(text);
@@ -58,13 +103,14 @@ List<_Segment> _tokenize(String text) {
   while (cursor < normalizedText.length) {
     bool found = false;
 
-    for (final phrase in sorted) {
-      final normPhrase = _normalize(phrase);
-      if (normalizedText.startsWith(normPhrase, cursor)) {
-        final original = text.substring(cursor, cursor + normPhrase.length);
-        segments.add(_Segment(original, hasImage: true, imageKey: _toAssetName(phrase)));
-        cursor += normPhrase.length;
-        if (cursor < normalizedText.length && normalizedText[cursor] == ' ') cursor++;
+    for (final normWord in knownWords) {
+      if (normalizedText.startsWith(normWord, cursor)) {
+        final original = text.substring(cursor, cursor + normWord.length);
+        final url = _imageUrlMap[normWord]!;
+        segments.add(_Segment(original, hasImage: true, imageUrl: url));
+        cursor += normWord.length;
+        if (cursor < normalizedText.length &&
+            normalizedText[cursor] == ' ') cursor++;
         found = true;
         break;
       }
@@ -74,8 +120,8 @@ List<_Segment> _tokenize(String text) {
       final start = cursor;
       while (cursor < normalizedText.length) {
         bool willMatch = false;
-        for (final phrase in sorted) {
-          if (normalizedText.startsWith(_normalize(phrase), cursor)) {
+        for (final normWord in knownWords) {
+          if (normalizedText.startsWith(normWord, cursor)) {
             willMatch = true;
             break;
           }
@@ -85,7 +131,8 @@ List<_Segment> _tokenize(String text) {
       }
       final rawText = text.substring(start, cursor).trimRight();
       if (rawText.isNotEmpty) segments.add(_Segment(rawText));
-      if (cursor < normalizedText.length && normalizedText[cursor] == ' ') cursor++;
+      if (cursor < normalizedText.length &&
+          normalizedText[cursor] == ' ') cursor++;
     }
   }
 
@@ -93,17 +140,19 @@ List<_Segment> _tokenize(String text) {
 }
 
 // ===========================================================
-//  DIALOG imagen
+//  DIALOG imagen desde URL de Firebase Storage
+//  Usa CachedNetworkImage — misma apariencia que antes
 // ===========================================================
-void _showImageDialog(BuildContext context, String imageKey) {
-  final path = "assets/images/$imageKey.png";
+void _showNetworkImageDialog(BuildContext context, String imageUrl) {
   final size = MediaQuery.of(context).size;
 
   showDialog(
     context: context,
     builder: (_) => Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      insetPadding:
+          const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20)),
       child: SizedBox(
         width: size.width * 0.85,
         height: size.height * 0.70,
@@ -112,10 +161,13 @@ void _showImageDialog(BuildContext context, String imageKey) {
           child: Column(
             children: [
               Expanded(
-                child: Image.asset(
-                  path,
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Center(
+                  placeholder: (_, __) => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  errorWidget: (_, __, ___) => const Center(
                     child: Text("Imagen no disponible"),
                   ),
                 ),
@@ -152,6 +204,8 @@ void _showImageDialog(BuildContext context, String imageKey) {
 
 // ===========================================================
 //  WIDGET de texto con palabras interactivas
+//  Visualmente idéntico al original — solo cambia la fuente
+//  de imágenes: URL Firebase en lugar de assets locales
 // ===========================================================
 class _SentenceWithImages extends StatefulWidget {
   final String text;
@@ -165,11 +219,12 @@ class _SentenceWithImages extends StatefulWidget {
   });
 
   @override
-  State<_SentenceWithImages> createState() => _SentenceWithImagesState();
+  State<_SentenceWithImages> createState() =>
+      _SentenceWithImagesState();
 }
 
 class _SentenceWithImagesState extends State<_SentenceWithImages> {
-  String? _hoveringKey;
+  String? _hoveringUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -201,19 +256,21 @@ class _SentenceWithImagesState extends State<_SentenceWithImages> {
           ),
         ));
       } else {
-        final isHovering = _hoveringKey == seg.imageKey;
+        final isHovering = _hoveringUrl == seg.imageUrl;
 
         widgets.add(
           MouseRegion(
-            onEnter: (_) => setState(() => _hoveringKey = seg.imageKey),
-            onExit: (_) => setState(() => _hoveringKey = null),
+            onEnter: (_) =>
+                setState(() => _hoveringUrl = seg.imageUrl),
+            onExit: (_) => setState(() => _hoveringUrl = null),
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => _showImageDialog(context, seg.imageKey),
+              onTap: () => _showNetworkImageDialog(context, seg.imageUrl),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 3),
+                padding: const EdgeInsets.symmetric(
+                    vertical: 1, horizontal: 3),
                 decoration: BoxDecoration(
                   color: isHovering
                       ? Colors.amber.withOpacity(0.35)
@@ -252,7 +309,8 @@ class _SentenceWithImagesState extends State<_SentenceWithImages> {
 class VnestSentenceEvaluationScreen extends StatefulWidget {
   final Map<String, dynamic> exercise;
 
-  const VnestSentenceEvaluationScreen({super.key, required this.exercise});
+  const VnestSentenceEvaluationScreen(
+      {super.key, required this.exercise});
 
   @override
   State<VnestSentenceEvaluationScreen> createState() =>
@@ -274,13 +332,15 @@ class _VnestSentenceEvaluationScreenState
   bool showError = false;
   bool showExpandedInfo = false;
 
-  // Flash solo se activa cuando la respuesta es correcta
   String? _cardFlash; // 'accepted' | 'rejected' | null
 
   @override
   void initState() {
     super.initState();
-    _loadImageWords(setState);
+
+    // Construye mapa imagen→URL desde el campo "imagenes" del documento
+    _buildImageUrlMap(widget.exercise);
+
     final oraciones = (widget.exercise['oraciones'] as List?) ?? [];
     sentences = _shuffle(oraciones.asMap().entries.map((e) {
       final o = e.value as Map<String, dynamic>;
@@ -307,9 +367,6 @@ class _VnestSentenceEvaluationScreenState
 
   bool get showDone => index >= sentences.length;
 
-  // Valida primero:
-  //   ✅ correcto  → activa flash del color de la decisión, luego avanza
-  //   ❌ incorrecto → sin flash, muestra error y explicación
   void handleDecision(String decision) async {
     if (showDone) return;
     final current = sentences[index];
@@ -336,7 +393,7 @@ class _VnestSentenceEvaluationScreenState
     } else {
       setState(() {
         current['status'] = decision;
-        _cardFlash = null; // sin flash en error
+        _cardFlash = null;
         deltaX = 0.0;
         dragging = false;
         showError = true;
@@ -377,7 +434,8 @@ class _VnestSentenceEvaluationScreenState
   Widget build(BuildContext context) {
     final current = !showDone ? sentences[index] : null;
 
-    final reviewed = sentences.where((s) => s['status'] != 'pending').toList();
+    final reviewed =
+        sentences.where((s) => s['status'] != 'pending').toList();
     final ok = reviewed.where((s) {
       final userCorrect = s['status'] == 'accepted';
       return userCorrect == s['correcta'];
@@ -395,13 +453,15 @@ class _VnestSentenceEvaluationScreenState
         ),
         title: const Text(
           "Evalúa las oraciones",
-          style: TextStyle(fontWeight: FontWeight.w700, color: Colors.black87),
+          style: TextStyle(
+              fontWeight: FontWeight.w700, color: Colors.black87),
         ),
         centerTitle: true,
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+              horizontal: 20, vertical: 8),
           child: Column(
             children: [
               Align(
@@ -439,23 +499,27 @@ class _VnestSentenceEvaluationScreenState
                       ? Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Error feedback
                             if (showError)
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 8, horizontal: 12),
-                                margin: const EdgeInsets.only(bottom: 10),
+                                padding:
+                                    const EdgeInsets.symmetric(
+                                        vertical: 8, horizontal: 12),
+                                margin: const EdgeInsets.only(
+                                    bottom: 10),
                                 decoration: BoxDecoration(
                                   color: Colors.red.shade50,
-                                  border:
-                                      Border.all(color: Colors.red.shade200),
-                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: Colors.red.shade200),
+                                  borderRadius:
+                                      BorderRadius.circular(8),
                                 ),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.center,
                                   children: [
                                     Icon(Icons.error_outline,
-                                        color: Colors.red.shade600, size: 20),
+                                        color: Colors.red.shade600,
+                                        size: 20),
                                     const SizedBox(width: 6),
                                     const Text(
                                       "Respuesta incorrecta",
@@ -469,7 +533,6 @@ class _VnestSentenceEvaluationScreenState
                                 ),
                               ),
 
-                            // Tarjeta con swipe
                             Expanded(
                               flex: 6,
                               child: GestureDetector(
@@ -481,13 +544,14 @@ class _VnestSentenceEvaluationScreenState
                                   child: Transform.rotate(
                                     angle: deltaX * 0.01,
                                     child: _buildLargeCard(
-                                        current['text'], deltaX, _cardFlash),
+                                        current['text'],
+                                        deltaX,
+                                        _cardFlash),
                                   ),
                                 ),
                               ),
                             ),
 
-                            // Explicación
                             if (feedback != null)
                               Container(
                                 padding: const EdgeInsets.all(12),
@@ -496,7 +560,8 @@ class _VnestSentenceEvaluationScreenState
                                   color: Colors.orange.shade50,
                                   border: Border.all(
                                       color: orange.withOpacity(0.6)),
-                                  borderRadius: BorderRadius.circular(10),
+                                  borderRadius:
+                                      BorderRadius.circular(10),
                                 ),
                                 child: Row(
                                   children: [
@@ -524,22 +589,23 @@ class _VnestSentenceEvaluationScreenState
 
               const SizedBox(height: 16),
 
-              // ── Botones Bien / Mal ──────────────────────────────────────
+              // ── Botones Bien / Mal ──────────────────────────
               if (!showDone)
                 Row(
                   children: [
-                    // Botón MAL
                     Expanded(
                       child: ElevatedButton(
                         onPressed: handleReject,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red.shade50,
                           foregroundColor: Colors.red.shade700,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                             side: BorderSide(
-                                color: Colors.red.shade200, width: 1.5),
+                                color: Colors.red.shade200,
+                                width: 1.5),
                           ),
                           elevation: 0,
                         ),
@@ -573,18 +639,19 @@ class _VnestSentenceEvaluationScreenState
 
                     const SizedBox(width: 12),
 
-                    // Botón BIEN
                     Expanded(
                       child: ElevatedButton(
                         onPressed: handleAccept,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green.shade50,
                           foregroundColor: Colors.green.shade700,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                             side: BorderSide(
-                                color: Colors.green.shade200, width: 1.5),
+                                color: Colors.green.shade200,
+                                width: 1.5),
                           ),
                           elevation: 0,
                         ),
@@ -629,7 +696,8 @@ class _VnestSentenceEvaluationScreenState
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey.shade300,
                         foregroundColor: Colors.black87,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                       ),
@@ -647,16 +715,19 @@ class _VnestSentenceEvaluationScreenState
                               )
                           : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            showDone ? orange : orange.withOpacity(0.4),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: showDone
+                            ? orange
+                            : orange.withOpacity(0.4),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                       ),
                       child: const Text(
                         "Siguiente",
                         style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -683,7 +754,8 @@ class _VnestSentenceEvaluationScreenState
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: () => setState(() => showExpandedInfo = !showExpandedInfo),
+            onTap: () =>
+                setState(() => showExpandedInfo = !showExpandedInfo),
             child: Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
@@ -720,12 +792,12 @@ class _VnestSentenceEvaluationScreenState
         ),
       );
 
-  Widget _buildLargeCard(String text, double? deltaX, [String? flash]) {
+  Widget _buildLargeCard(String text, double? deltaX,
+      [String? flash]) {
     Color borderColor = Colors.grey.shade300;
     Color bgColor = Colors.white;
     Color textColor = Colors.black87;
 
-    // Flash solo si la respuesta fue correcta (controlado desde handleDecision)
     if (flash == 'accepted') {
       bgColor = Colors.green.shade50;
       borderColor = Colors.green.shade300;
@@ -743,7 +815,8 @@ class _VnestSentenceEvaluationScreenState
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
       width: double.infinity,
       decoration: BoxDecoration(
         color: bgColor,
@@ -767,13 +840,15 @@ class _VnestSentenceEvaluationScreenState
     );
   }
 
-  Widget _buildSummary(List<Map<String, dynamic>> reviewed, int ok) {
+  Widget _buildSummary(
+      List<Map<String, dynamic>> reviewed, int ok) {
     return Column(
       children: [
         const SizedBox(height: 30),
         const Text(
           "¡Listo!",
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+          style:
+              TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(
@@ -787,16 +862,23 @@ class _VnestSentenceEvaluationScreenState
             itemBuilder: (context, i) {
               final s = reviewed[i];
               final userSaysCorrect = s['status'] == 'accepted';
-              final acertaste = userSaysCorrect == s['correcta'];
+              final acertaste =
+                  userSaysCorrect == s['correcta'];
 
-              final bg = acertaste ? Colors.green.shade50 : Colors.red.shade50;
-              final border =
-                  acertaste ? Colors.green.shade300 : Colors.red.shade300;
-              final tagBg =
-                  acertaste ? Colors.green.shade100 : Colors.red.shade100;
-              final tagText =
-                  acertaste ? Colors.green.shade700 : Colors.red.shade700;
-              final title = acertaste ? "Acertaste" : "Te equivocaste";
+              final bg = acertaste
+                  ? Colors.green.shade50
+                  : Colors.red.shade50;
+              final border = acertaste
+                  ? Colors.green.shade300
+                  : Colors.red.shade300;
+              final tagBg = acertaste
+                  ? Colors.green.shade100
+                  : Colors.red.shade100;
+              final tagText = acertaste
+                  ? Colors.green.shade700
+                  : Colors.red.shade700;
+              final title =
+                  acertaste ? "Acertaste" : "Te equivocaste";
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
@@ -835,8 +917,8 @@ class _VnestSentenceEvaluationScreenState
                     Text(
                       "Sistema: ${s['correcta'] ? "Correcta" : "Incorrecta"} · "
                       "Tú marcaste: ${userSaysCorrect ? "Bien" : "Mal"}",
-                      style:
-                          const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: const TextStyle(
+                          fontSize: 12, color: Colors.grey),
                     ),
                   ],
                 ),
@@ -848,4 +930,3 @@ class _VnestSentenceEvaluationScreenState
     );
   }
 }
-

@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../screens/register/register_viewmodel.dart';
+import 'vnest_shared_widgets.dart';
+
+// ===========================================================
+//  VnestSelectVerbScreen
+//
+//  Las imágenes se cargan desde URLs de Firebase Storage
+//  almacenadas en el campo "imagenes.verbo.url" del documento
+//  ejercicios_VNEST. No se usan assets locales.
+// ===========================================================
 
 class VnestSelectVerbScreen extends StatefulWidget {
   final String vnestContext;
@@ -14,13 +24,14 @@ class VnestSelectVerbScreen extends StatefulWidget {
 }
 
 class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
-  // 🎨 Colores consistentes con Rehabilita
   final background = const Color(0xFFFFF7F2);
   final orange = const Color(0xFFF48A63);
 
   bool loading = false;
   bool loadingExercise = false;
   String? error;
+
+  /// Cada entrada: { verbo, highlight, count, id_ejercicio_general, imageUrl? }
   List<Map<String, dynamic>> verbs = [];
   String? selectedVerb;
   bool showExpandedInfo = false;
@@ -28,61 +39,59 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
   @override
   void initState() {
     super.initState();
-    fetchVerbs(); // directo desde Firestore
+    fetchVerbs();
   }
 
-  // ============================
-  // 🔹 Resolver doc del paciente (uid/email/campo email)
-  // ============================
-  Future<String?> _resolvePacienteDocId({String? uid, String? email}) async {
+  Future<String?> _resolvePacienteDocId(
+      {String? uid, String? email}) async {
     final col = FirebaseFirestore.instance.collection('pacientes');
-
     if (email != null && email.isNotEmpty) {
       final byEmailId = await col.doc(email).get();
       if (byEmailId.exists) return byEmailId.id;
     }
-
     if (uid != null && uid.isNotEmpty) {
       final byUid = await col.doc(uid).get();
       if (byUid.exists) return byUid.id;
     }
-
     if (email != null && email.isNotEmpty) {
-      final q = await col.where('email', isEqualTo: email).limit(1).get();
+      final q =
+          await col.where('email', isEqualTo: email).limit(1).get();
       if (q.docs.isNotEmpty) return q.docs.first.id;
     }
-
     return null;
   }
 
-  // ============================
-  // 🔹 Verificar si un ejercicio está revisado
-  // ============================
   Future<bool> _isEjercicioRevisado(String? idEjercicioGeneral) async {
     if (idEjercicioGeneral == null || idEjercicioGeneral.isEmpty) {
       return false;
     }
-
     try {
-      final ejercicioDoc = await FirebaseFirestore.instance
+      final doc = await FirebaseFirestore.instance
           .collection('ejercicios')
           .doc(idEjercicioGeneral)
           .get();
-
-      if (!ejercicioDoc.exists) {
-        return false;
-      }
-
-      final data = ejercicioDoc.data();
-      return (data?['revisado'] ?? false) == true;
-    } catch (e) {
+      if (!doc.exists) return false;
+      return (doc.data()?['revisado'] ?? false) == true;
+    } catch (_) {
       return false;
     }
   }
 
   // ============================
-  // 🔹 Obtener verbos + marcar highlight
+  // 🔹 Extrae la URL de imagen del verbo desde el campo "imagenes"
+  //    Firestore: imagenes.verbo.url
   // ============================
+  String? _extractVerbImageUrl(Map<String, dynamic> ejercicioData) {
+    final imagenes = ejercicioData['imagenes'];
+    if (imagenes == null || imagenes is! Map) return null;
+
+    final verboEntry = imagenes['verbo'];
+    if (verboEntry == null || verboEntry is! Map) return null;
+
+    final url = verboEntry['url']?.toString();
+    return (url != null && url.isNotEmpty) ? url : null;
+  }
+
   Future<void> fetchVerbs() async {
     setState(() {
       loading = true;
@@ -90,11 +99,11 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
     });
 
     try {
-      final registerVM = Provider.of<RegisterViewModel>(context, listen: false);
+      final registerVM =
+          Provider.of<RegisterViewModel>(context, listen: false);
       final email = registerVM.userEmail;
       final uid = registerVM.userId;
 
-      // 1️⃣ Traer ejercicios VNEST del contexto
       final vnestSnap = await FirebaseFirestore.instance
           .collection('ejercicios_VNEST')
           .where('contexto', isEqualTo: widget.vnestContext)
@@ -110,33 +119,50 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         };
       }).where((e) => (e['verbo'] ?? '').toString().isNotEmpty).toList();
 
-      // 2️⃣ Filtrar solo los que están revisados
+      // Filtrar solo revisados
       final vnestList = <Map<String, dynamic>>[];
       for (final ex in allVnestList) {
         final isRevisado = await _isEjercicioRevisado(
           ex['id_ejercicio_general']?.toString(),
         );
-        if (isRevisado) {
-          vnestList.add(ex);
-        }
+        if (isRevisado) vnestList.add(ex);
       }
 
+      // Construir dict de verbos con URL de imagen desde Firebase
+      final Map<String, Map<String, dynamic>> verbsDict = {};
+      for (final ex in vnestList) {
+        // El campo "verbo" puede ser String o Map {word, key, url}
+        final verboRaw = ex['verbo'];
+        final String verboWord;
+        String? imageUrl;
 
-      final Map<String, Map<String, dynamic>> verbsDict = {
-        for (final ex in vnestList)
-          ex['verbo']: {
-            'verbo': ex['verbo'],
+        if (verboRaw is Map) {
+          verboWord = verboRaw['word']?.toString() ?? '';
+          imageUrl = verboRaw['url']?.toString();
+        } else {
+          verboWord = verboRaw?.toString() ?? '';
+          // Intentar extraer URL desde imagenes.verbo
+          imageUrl = _extractVerbImageUrl(ex);
+        }
+
+        if (verboWord.isEmpty) continue;
+
+        if (!verbsDict.containsKey(verboWord)) {
+          verbsDict[verboWord] = {
+            'verbo': verboWord,
             'highlight': false,
             'count': 0,
             'id_ejercicio_general': ex['id_ejercicio_general'],
-          }
-      };
+            'imageUrl': imageUrl, // ← URL de Firebase Storage
+          };
+        }
+      }
 
-      // 3️⃣ Resolver paciente
-      final pacienteDocId = await _resolvePacienteDocId(uid: uid, email: email);
+      // Marcar highlights con ejercicios asignados personalizados
+      final pacienteDocId =
+          await _resolvePacienteDocId(uid: uid, email: email);
 
       if (pacienteDocId != null) {
-        // 4️⃣ Leer asignados pendientes del contexto VNEST
         final asignadosSnap = await FirebaseFirestore.instance
             .collection('pacientes')
             .doc(pacienteDocId)
@@ -159,9 +185,13 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
                 .whereType<String>()
                 .toSet();
             if (ids.any((id) => pendientesIds.contains(id))) {
-              final verbo = ex['verbo'];
-              if (verbo is String && verbo.isNotEmpty) {
-                verbosPendientesCount[verbo] = (verbosPendientesCount[verbo] ?? 0) + 1;
+              final verboRaw = ex['verbo'];
+              final v = verboRaw is Map
+                  ? verboRaw['word']?.toString()
+                  : verboRaw?.toString();
+              if (v != null && v.isNotEmpty) {
+                verbosPendientesCount[v] =
+                    (verbosPendientesCount[v] ?? 0) + 1;
               }
             }
           }
@@ -185,7 +215,14 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
   }
 
   // ============================
-  // 🔹 Obtener ejercicio directamente desde Firestore
+  // 🔹 Diálogo imagen desde URL de Firebase Storage
+  // ============================
+  void _showVerbImage(BuildContext context, String imageUrl) {
+    showNetworkImageDialog(context, imageUrl);
+  }
+
+  // ============================
+  // 🔹 Abrir ejercicio
   // ============================
   Future<void> openExercise(String verbo) async {
     setState(() {
@@ -194,33 +231,40 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
     });
 
     try {
-      final registerVM = Provider.of<RegisterViewModel>(context, listen: false);
+      final registerVM =
+          Provider.of<RegisterViewModel>(context, listen: false);
       final userId = registerVM.userId;
       final fs = FirebaseFirestore.instance;
 
       final pacienteRef = fs.collection("pacientes").doc(userId);
       final asignadosRef = pacienteRef.collection("ejercicios_asignados");
 
-      // ========== Helpers ==========
-      Future<bool> _isPersonalizedForVnestDoc(
+      Future<bool> isPersonalizedForVnestDoc(
           DocumentSnapshot<Map<String, dynamic>> vnDoc) async {
         final data = vnDoc.data() ?? {};
         final generalId = (data['id_ejercicio_general'] ?? '') as String;
-        if (generalId.isEmpty) return (data['personalizado'] ?? false) == true;
-        final base = await fs.collection('ejercicios').doc(generalId).get();
+        if (generalId.isEmpty) {
+          return (data['personalizado'] ?? false) == true;
+        }
+        final base =
+            await fs.collection('ejercicios').doc(generalId).get();
         if (!base.exists) return (data['personalizado'] ?? false) == true;
-        final baseData = base.data() ?? {};
-        return (baseData['personalizado'] ?? false) == true;
+        return (base.data()?['personalizado'] ?? false) == true;
       }
 
-      int _priorityOf(Map<String, dynamic> a) {
+      int priorityOf(Map<String, dynamic> a) {
         final p = a['prioridad'];
         if (p is int) return p;
         if (p is num) return p.toInt();
         return 999999;
       }
 
-      // 1) Buscar asignados del contexto (tipo VNEST)
+      // Normaliza el verbo para comparar (soporta String y Map)
+      String _extractVerboWord(dynamic verboRaw) {
+        if (verboRaw is Map) return verboRaw['word']?.toString() ?? '';
+        return verboRaw?.toString() ?? '';
+      }
+
       final asignadosSnap = await asignadosRef
           .where("contexto", isEqualTo: widget.vnestContext)
           .where("tipo", isEqualTo: "VNEST")
@@ -231,18 +275,21 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         final m = d.data();
         final exId = (m['id_ejercicio'] ?? '').toString();
         if (exId.isEmpty) continue;
-        final vnDoc = await fs.collection('ejercicios_VNEST').doc(exId).get();
+        final vnDoc =
+            await fs.collection('ejercicios_VNEST').doc(exId).get();
         if (!vnDoc.exists) continue;
         final vn = vnDoc.data() ?? {};
-        if ((vn['verbo'] ?? '') != verbo) continue;
+        if (_extractVerboWord(vn['verbo']) != verbo) continue;
 
-        final idEjercicioGeneral = vn['id_ejercicio_general']?.toString();
-        final isRevisado = await _isEjercicioRevisado(idEjercicioGeneral);
+        final idEjercicioGeneral =
+            vn['id_ejercicio_general']?.toString();
+        final isRevisado =
+            await _isEjercicioRevisado(idEjercicioGeneral);
         if (!isRevisado) continue;
 
         bool personalizado = (m['personalizado'] ?? false) == true;
         if (!personalizado) {
-          personalizado = await _isPersonalizedForVnestDoc(vnDoc);
+          personalizado = await isPersonalizedForVnestDoc(vnDoc);
         }
 
         asignados.add({
@@ -253,20 +300,19 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         });
       }
 
-      // 2) Pendientes: personalizados primero, luego prioridad asc
-      final pendientes = asignados.where((e) => e['estado'] == 'pendiente').toList()
-        ..sort((a, b) {
-          final ap = (a['_personalizado'] == true) ? 0 : 1;
-          final bp = (b['_personalizado'] == true) ? 0 : 1;
-          if (ap != bp) return ap - bp;
-          return _priorityOf(a).compareTo(_priorityOf(b));
-        });
+      final pendientes =
+          asignados.where((e) => e['estado'] == 'pendiente').toList()
+            ..sort((a, b) {
+              final ap = (a['_personalizado'] == true) ? 0 : 1;
+              final bp = (b['_personalizado'] == true) ? 0 : 1;
+              if (ap != bp) return ap - bp;
+              return priorityOf(a).compareTo(priorityOf(b));
+            });
 
       if (pendientes.isNotEmpty) {
         final chosen = pendientes.first;
         final vn = Map<String, dynamic>.from(chosen['_vn'] as Map);
         final vnId = chosen['_vnId'] as String;
-
         Navigator.pushNamed(context, '/vnest-action', arguments: {
           ...vn,
           'context': widget.vnestContext,
@@ -276,40 +322,53 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         return;
       }
 
-      // 3) Buscar VNEST del verbo en el contexto (solo revisados)
       final allVnestSnap = await fs
           .collection('ejercicios_VNEST')
           .where('contexto', isEqualTo: widget.vnestContext)
-          .where('verbo', isEqualTo: verbo)
           .get();
 
-      final vnestRevisadosDocs = <DocumentSnapshot<Map<String, dynamic>>>[];
-      for (final doc in allVnestSnap.docs) {
+      // Filtra por verbo soportando Map y String
+      final vnestPorVerbo = allVnestSnap.docs.where((doc) {
         final data = doc.data();
-        final idEjercicioGeneral = data?['id_ejercicio_general']?.toString();
-        final isRevisado = await _isEjercicioRevisado(idEjercicioGeneral);
-        if (isRevisado) {
-          vnestRevisadosDocs.add(doc);
-        }
+        final vRaw = data['verbo'];
+        final vWord = vRaw is Map
+            ? vRaw['word']?.toString() ?? ''
+            : vRaw?.toString() ?? '';
+        return vWord == verbo;
+      }).toList();
+
+      final vnestRevisadosDocs =
+          <DocumentSnapshot<Map<String, dynamic>>>[];
+      for (final doc in vnestPorVerbo) {
+        final data = doc.data();
+        final idEjercicioGeneral =
+            data['id_ejercicio_general']?.toString();
+        final isRevisado =
+            await _isEjercicioRevisado(idEjercicioGeneral);
+        if (isRevisado) vnestRevisadosDocs.add(doc);
       }
 
       if (vnestRevisadosDocs.isEmpty) {
-        throw Exception("No se encontró ejercicio revisado de '$verbo' en este contexto.");
+        throw Exception(
+            "No se encontró ejercicio revisado de '$verbo' en este contexto.");
       }
 
-      final asignadosIds =
-          asignadosSnap.docs.map((d) => d.data()['id_ejercicio'].toString()).toSet();
-      final noAsignadosDocs =
-          vnestRevisadosDocs.where((d) => !asignadosIds.contains(d.id)).toList();
+      final asignadosIds = asignadosSnap.docs
+          .map((d) => d.data()['id_ejercicio'].toString())
+          .toSet();
+      final noAsignadosDocs = vnestRevisadosDocs
+          .where((d) => !asignadosIds.contains(d.id))
+          .toList();
 
-      Future<List<DocumentSnapshot<Map<String, dynamic>>>> _sortPersonalizedFirst(
+      Future<List<DocumentSnapshot<Map<String, dynamic>>>>
+          sortPersonalizedFirst(
         List<DocumentSnapshot<Map<String, dynamic>>> docs,
       ) async {
         final withFlag = <Map<String, dynamic>>[];
         for (final d in docs) {
           withFlag.add({
             'doc': d,
-            'personalizado': await _isPersonalizedForVnestDoc(d),
+            'personalizado': await isPersonalizedForVnestDoc(d),
           });
         }
         withFlag.sort((a, b) {
@@ -318,18 +377,18 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
           return ap - bp;
         });
         return withFlag
-            .map((e) => e['doc'] as DocumentSnapshot<Map<String, dynamic>>)
+            .map((e) =>
+                e['doc'] as DocumentSnapshot<Map<String, dynamic>>)
             .toList();
       }
 
-      // 4) Si hay no asignados → personalizados primero
       if (noAsignadosDocs.isNotEmpty) {
-        final ordered = await _sortPersonalizedFirst(noAsignadosDocs);
-
+        final ordered = await sortPersonalizedFirst(noAsignadosDocs);
         final chosenDoc = ordered.first;
         final chosenData = chosenDoc.data() ?? {};
         final idEjercicio = chosenDoc.id;
-        final contexto = chosenData['contexto'] ?? widget.vnestContext;
+        final contexto =
+            chosenData['contexto'] ?? widget.vnestContext;
 
         final allAsg = await asignadosRef.get();
         final prioridades = allAsg.docs
@@ -337,12 +396,14 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
             .whereType<num>()
             .map((n) => n.toInt())
             .toList();
-        final nextPriority =
-            prioridades.isEmpty ? 1 : (prioridades.reduce((a, b) => a > b ? a : b) + 1);
+        final nextPriority = prioridades.isEmpty
+            ? 1
+            : (prioridades.reduce((a, b) => a > b ? a : b) + 1);
 
-        final personalizedFlag = await _isPersonalizedForVnestDoc(chosenDoc);
-
-        final existe = await asignadosRef.doc(idEjercicio).get();
+        final personalizedFlag =
+            await isPersonalizedForVnestDoc(chosenDoc);
+        final existe =
+            await asignadosRef.doc(idEjercicio).get();
         if (!existe.exists) {
           await asignadosRef.doc(idEjercicio).set({
             "id_ejercicio": idEjercicio,
@@ -367,24 +428,25 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         return;
       }
 
-      // 5) Completado más antiguo (personalizado primero)
-      final completados = asignados.where((e) => e['estado'] == 'completado').toList()
-        ..sort((a, b) {
-          final ap = (a['_personalizado'] == true) ? 0 : 1;
-          final bp = (b['_personalizado'] == true) ? 0 : 1;
-          if (ap != bp) return ap - bp;
-          final ta = a['ultima_fecha_realizado'];
-          final tb = b['ultima_fecha_realizado'];
-          if (ta == null && tb == null) return 0;
-          if (ta == null) return 1;
-          if (tb == null) return -1;
-          return (ta as Timestamp).compareTo(tb as Timestamp);
-        });
+      final completados =
+          asignados.where((e) => e['estado'] == 'completado').toList()
+            ..sort((a, b) {
+              final ap = (a['_personalizado'] == true) ? 0 : 1;
+              final bp = (b['_personalizado'] == true) ? 0 : 1;
+              if (ap != bp) return ap - bp;
+              final ta = a['ultima_fecha_realizado'];
+              final tb = b['ultima_fecha_realizado'];
+              if (ta == null && tb == null) return 0;
+              if (ta == null) return 1;
+              if (tb == null) return -1;
+              return (ta as Timestamp).compareTo(tb as Timestamp);
+            });
 
       if (completados.isNotEmpty) {
         final old = completados.first;
         final oldId = (old['id_ejercicio'] ?? '').toString();
-        final oldVnDoc = await fs.collection('ejercicios_VNEST').doc(oldId).get();
+        final oldVnDoc =
+            await fs.collection('ejercicios_VNEST').doc(oldId).get();
         if (oldVnDoc.exists) {
           final vn = oldVnDoc.data() ?? {};
           Navigator.pushNamed(context, '/vnest-action', arguments: {
@@ -398,7 +460,6 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         }
       }
 
-      // 6) Fallback
       final fallback = vnestRevisadosDocs.first;
       final fb = fallback.data() ?? {};
       Navigator.pushNamed(context, '/vnest-action', arguments: {
@@ -414,6 +475,8 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
     }
   }
 
+  
+
   // ============================
   // 🔹 INTERFAZ
   // ============================
@@ -423,6 +486,13 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
     final loadingText = loading
         ? "Cargando verbos…"
         : (loadingExercise ? "Abriendo ejercicio…" : "");
+    final verbsWithImage = verbs
+    .where((v) => v['imageUrl'] != null && v['imageUrl'].toString().isNotEmpty)
+    .toList();
+
+    final verbsWithoutImage = verbs
+    .where((v) => v['imageUrl'] == null || v['imageUrl'].toString().isEmpty)
+    .toList();
 
     return Scaffold(
       backgroundColor: background,
@@ -466,15 +536,27 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
                                 ),
                               ),
                             )
-                          : ListView.builder(
-                              itemCount: verbs.length,
-                              itemBuilder: (context, index) =>
-                                  _buildVerbOption(verbs[index]),
-                            ),
+                          : ListView(
+                            children: [
+                              // 🔹 Sección con imagen
+                              if (verbsWithImage.isNotEmpty) ...[
+                                _buildSectionTitle("🖼️ Verbos con imagen"),
+                                ...verbsWithImage.map((v) => _buildVerbOption(v)).toList(),
+                              ],
+
+                              // 🔹 Sección sin imagen
+                              if (verbsWithoutImage.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                _buildSectionTitle("🔤 Verbos sin imagen"),
+                                ...verbsWithoutImage.map((v) => _buildVerbOption(v)).toList(),
+                              ],
+                            ],
+                          )
+                            
                     ),
-                      const SizedBox(height: 16),
-                      _buildNextButton(),
-                    ],
+                    const SizedBox(height: 16),
+                    _buildNextButton(),
+                  ],
                 ),
         ),
       ),
@@ -485,10 +567,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
-              color: orange,
-              strokeWidth: 4,
-            ),
+            CircularProgressIndicator(color: orange, strokeWidth: 4),
             const SizedBox(height: 16),
             Text(
               text,
@@ -540,7 +619,8 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
               ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap: () => setState(() => showExpandedInfo = !showExpandedInfo),
+                onTap: () => setState(
+                    () => showExpandedInfo = !showExpandedInfo),
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
@@ -585,8 +665,8 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
                         Container(
                           width: 20,
                           height: 20,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE57348),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE57348),
                             shape: BoxShape.circle,
                           ),
                           child: const Center(
@@ -621,9 +701,8 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         ],
       );
 
-  bool _hasPersonalizedExercises() {
-    return verbs.any((v) => v['highlight'] == true && v['count'] > 0);
-  }
+  bool _hasPersonalizedExercises() =>
+      verbs.any((v) => v['highlight'] == true && v['count'] > 0);
 
   Widget _buildError() => Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -639,9 +718,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
             Text(
               error ?? "Error cargando verbos",
               style: const TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.w600,
-              ),
+                  color: Colors.red, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
             Align(
@@ -650,35 +727,27 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: orange,
                   foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                      borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
                 ),
                 onPressed: fetchVerbs,
-                child: const Text(
-                  "Reintentar",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+                child: const Text("Reintentar",
+                    style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ],
         ),
       );
 
-  // ============================
-  // 🔹 OPCIÓN DE VERBO
-  // ============================
   Widget _buildVerbOption(Map<String, dynamic> verbData) {
     final verbo = (verbData["verbo"] ?? "").toString();
     final highlight = (verbData["highlight"] ?? false) == true;
     final count = (verbData["count"] ?? 0) as int;
     final isSelected = selectedVerb == verbo;
-
-    final imagePath = _getImagePath(verbo);
-
+    final imageUrl = verbData["imageUrl"] as String?;
 
     return InkWell(
       onTap: () => setState(() => selectedVerb = verbo),
@@ -687,9 +756,7 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
         margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFFFFE8DD)
-              : Colors.white,
+          color: isSelected ? const Color(0xFFFFE8DD) : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isSelected
@@ -719,7 +786,9 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                highlight ? Icons.lightbulb_rounded : Icons.play_arrow_rounded,
+                highlight
+                    ? Icons.lightbulb_rounded
+                    : Icons.play_arrow_rounded,
                 color: orange,
                 size: highlight ? 24 : 28,
               ),
@@ -738,17 +807,17 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
                       ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.image_outlined,
-                      size: 20,
-                      color: Colors.grey,
+                  // Botón imagen: visible solo si hay URL de Firebase
+                  if (imageUrl != null && imageUrl.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.image_outlined,
+                        size: 20,
+                        color: Colors.grey,
+                      ),
+                      onPressed: () =>
+                          _showVerbImage(context, imageUrl),
                     ),
-                    onPressed: () {
-                      // 🔹 Aquí mapeas verbo → imagen
-                      _showImage(context, imagePath);
-                    },
-                  ),
                 ],
               ),
             ),
@@ -756,8 +825,8 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
               Container(
                 width: 32,
                 height: 32,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE57348),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE57348),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
@@ -777,11 +846,23 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
     );
   }
 
-  // ============================
-  // 🔹 BOTÓN SIGUIENTE
-  // ============================
+  Widget _buildSectionTitle(String title) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    child: Text(
+      title,
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w800,
+        color: Colors.black87,
+      ),
+    ),
+  );
+}
+
   Widget _buildNextButton() {
-    final isEnabled = selectedVerb != null && selectedVerb!.isNotEmpty;
+    final isEnabled =
+        selectedVerb != null && selectedVerb!.isNotEmpty;
 
     return SizedBox(
       width: double.infinity,
@@ -813,30 +894,4 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
       ),
     );
   }
-
-  void _showImage(BuildContext context, String imagePath) {
-  showDialog(
-    context: context,
-    builder: (_) => Dialog(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Image.asset(imagePath),
-      ),
-    ),
-  );
-}
-
-String _getImagePath(String word) {
-  final normalized = word
-      .toLowerCase()
-      .replaceAll(" ", "_")
-      .replaceAll("á", "a")
-      .replaceAll("é", "e")
-      .replaceAll("í", "i")
-      .replaceAll("ó", "o")
-      .replaceAll("ú", "u")
-      .replaceAll("ñ", "n");
-
-  return "assets/images/$normalized.png";
-}
 }

@@ -7,7 +7,11 @@ import 'package:permission_handler/permission_handler.dart';
 import '../register/register_viewmodel.dart';
 
 class SRExercisesScreen extends StatefulWidget {
-  const SRExercisesScreen({super.key});
+  /// Si es true, las palabras clave muestran imágenes al tocarlas.
+  /// Se recibe desde [SRModeSelectionScreen] vía route arguments.
+  final bool withImages;
+
+  const SRExercisesScreen({super.key, required this.withImages});
 
   @override
   State<SRExercisesScreen> createState() => _SRExercisesScreenState();
@@ -56,17 +60,25 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
   // ── Helpers de imagen ────────────────────────────────────────
 
   String? _getRtaImageUrl() {
+    if (!widget.withImages) return null; // ← respeta el modo
     final imagenes = currentCard?["imagenes"];
     if (imagenes == null || imagenes is! Map) return null;
     for (final key in imagenes.keys) {
       if (key.toString().endsWith("_rta")) {
-        return imagenes[key]?["url"] as String?;
+        final url = imagenes[key]?["url"] as String?;
+        if (url != null && url.isNotEmpty) return url;
       }
     }
     return null;
   }
 
-  /// Abre modal popup con la imagen — igual que _ClickableWord
+  bool _tieneImagenesDePregunta() {
+    if (!widget.withImages) return false; // ← respeta el modo
+    final imagenes = currentCard?["imagenes"];
+    if (imagenes == null || imagenes is! Map) return false;
+    return (imagenes as Map).keys.any((k) => !k.toString().endsWith("_rta"));
+  }
+
   void _showHintModal(BuildContext context, String imageUrl) {
     showDialog(
       context: context,
@@ -114,13 +126,11 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     );
   }
 
-  /// Botón de pista reutilizable
   Widget _buildHintButton(String imageUrl) {
     return GestureDetector(
       onTap: () => _showHintModal(context, imageUrl),
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: const Color(0xFFFFF3E0),
           borderRadius: BorderRadius.circular(20),
@@ -182,6 +192,8 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     final preguntaTokens = pregunta.split(' ');
 
     for (final entry in (imagenes as Map).entries) {
+      if (entry.key.toString().endsWith("_rta")) continue;
+
       final url = entry.value?["url"] as String?;
       final word = entry.value?["word"] as String?;
       if (url == null || word == null) continue;
@@ -243,8 +255,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
           ),
         ));
         if (i < words.length - 1) {
-          spans.add(
-              const TextSpan(text: ' ', style: TextStyle(fontSize: 22)));
+          spans.add(const TextSpan(text: ' ', style: TextStyle(fontSize: 22)));
         }
       } else {
         spans.add(TextSpan(
@@ -270,8 +281,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content:
-                  Text("Por favor habilita el micrófono para usar voz.")),
+              content: Text("Por favor habilita el micrófono para usar voz.")),
         );
       }
     }
@@ -317,8 +327,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
 
       final idsAsignados = asignadosSnap.docs
           .where((d) {
-            final estado =
-                d.data()["estado"]?.toString() ?? "pendiente";
+            final estado = d.data()["estado"]?.toString() ?? "pendiente";
             return estado != "completado";
           })
           .map((d) => d.data()["id_ejercicio"] as String?)
@@ -333,7 +342,6 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
       final ejerciciosSnap = await FirebaseFirestore.instance
           .collection("ejercicios_SR")
           .where("id_ejercicio_general", whereIn: idsAsignados)
-          .where("aprobado", isEqualTo: true)
           .get();
 
       final data = ejerciciosSnap.docs
@@ -341,16 +349,30 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
           .toList()
           .cast<Map<String, dynamic>>();
 
-      if (data.isEmpty) {
+      final aprobados = data.where((e) {
+        if (e["aprobado"] != true) return false;
+
+        // Verificar si el ejercicio tiene imágenes (excluyendo _rta)
+        final imagenes = e["imagenes"];
+        final tieneImagenes = imagenes is Map &&
+            (imagenes as Map).values.any((v) =>
+                v is Map &&
+                (v["url"] as String? ?? "").isNotEmpty);
+
+        // Mostrar solo los que coinciden con el modo seleccionado
+        return widget.withImages ? tieneImagenes : !tieneImagenes;
+      }).toList();
+
+      if (aprobados.isEmpty) {
         setState(() => loading = false);
         return;
       }
 
       setState(() {
-        cards = data;
-        currentCard = data.first;
+        cards = aprobados;
+        currentCard = aprobados.first;
         cardState = {
-          ...data.first,
+          ...aprobados.first,
           "interval_index": 0,
           "success_streak": 0,
           "lapses": 0,
@@ -370,8 +392,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     if (currentCard == null || cardState == null) return;
 
     final userAns = answerCtrl.text.trim().toLowerCase();
-    final correctAns =
-        (currentCard!["rta_correcta"] ?? "").trim().toLowerCase();
+    final correctAns = (currentCard!["rta_correcta"] ?? "").trim().toLowerCase();
     final isCorrect = userAns == correctAns;
 
     answerCtrl.clear();
@@ -380,16 +401,14 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     final intervals = List<int>.from(
         currentCard!["intervals_sec"] ?? [15, 30, 60, 120, 240]);
     final nextIndex = isCorrect
-        ? (cardState!["interval_index"] + 1)
-            .clamp(0, intervals.length - 1)
+        ? (cardState!["interval_index"] + 1).clamp(0, intervals.length - 1)
         : 0;
 
     setState(() {
       cardState = {
         ...cardState!,
         "interval_index": nextIndex,
-        "success_streak":
-            isCorrect ? (cardState!["success_streak"] + 1) : 0,
+        "success_streak": isCorrect ? (cardState!["success_streak"] + 1) : 0,
         "lapses": isCorrect
             ? cardState!["lapses"]
             : (cardState!["lapses"] + 1),
@@ -398,7 +417,6 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
             intervals[nextIndex] * 1000,
       };
       secondsLeft = intervals[nextIndex];
-      // Solo feedback de correcto/incorrecto, sin revelar la respuesta
       feedback = isCorrect ? "✅ ¡Correcto!" : "❌ Inténtalo de nuevo";
       mode = "timer";
     });
@@ -446,8 +464,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
           .collection("pacientes")
           .doc(userId)
           .collection("ejercicios_asignados")
-          .where("id_ejercicio",
-              isEqualTo: idEjercicioGeneral.toString())
+          .where("id_ejercicio", isEqualTo: idEjercicioGeneral.toString())
           .limit(1)
           .get();
 
@@ -481,8 +498,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
   void handleNextCard() async {
     if (currentCard == null) return;
     await _markExerciseAsCompleted();
-    final currentIndex =
-        cards.indexWhere((c) => c["id"] == currentCard!["id"]);
+    final currentIndex = cards.indexWhere((c) => c["id"] == currentCard!["id"]);
     final nextIndex = (currentIndex + 1) % cards.length;
     setState(() {
       currentCard = cards[nextIndex];
@@ -598,6 +614,30 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
                 color: Colors.black87,
                 fontWeight: FontWeight.w800,
                 fontSize: 20)),
+        // Chip que indica el modo actual
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Chip(
+              avatar: Icon(
+                widget.withImages ? Icons.image_rounded : Icons.text_fields_rounded,
+                size: 14,
+                color: orange,
+              ),
+              label: Text(
+                widget.withImages ? "Con imágenes" : "Sin imágenes",
+                style: TextStyle(
+                    fontSize: 11,
+                    color: orange,
+                    fontWeight: FontWeight.w600),
+              ),
+              backgroundColor: const Color(0xFFFFE8DD),
+              side: BorderSide.none,
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -643,8 +683,6 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     return _buildDoneCard();
   }
 
-  // ── Modo pregunta ────────────────────────────────────────────
-
   Widget _buildQuestionMode() {
     final pregunta = currentCard!["pregunta"] ?? "";
     final rtaUrl = _getRtaImageUrl();
@@ -654,29 +692,33 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _buildClickablePregunta(pregunta),
+          _tieneImagenesDePregunta()
+              ? _buildClickablePregunta(pregunta)
+              : Text(
+                  pregunta,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87),
+                ),
           const SizedBox(height: 22),
-
           TextField(
             controller: answerCtrl,
             decoration: InputDecoration(
               hintText: "Escribe o di tu respuesta...",
               filled: true,
               fillColor: const Color(0xFFFFE8DD),
-              contentPadding: const EdgeInsets.symmetric(
-                  vertical: 14, horizontal: 16),
+              contentPadding:
+                  const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(18),
                 borderSide: BorderSide.none,
               ),
               suffixIcon: IconButton(
                 icon: Icon(
-                  _isListening
-                      ? Icons.stop_rounded
-                      : Icons.mic_none_rounded,
-                  color: _isListening
-                      ? Colors.red
-                      : Colors.grey.shade700,
+                  _isListening ? Icons.stop_rounded : Icons.mic_none_rounded,
+                  color: _isListening ? Colors.red : Colors.grey.shade700,
                 ),
                 onPressed: () =>
                     _isListening ? _stopListening() : _startListening(),
@@ -684,13 +726,12 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
             ),
           ),
           const SizedBox(height: 18),
-
           ElevatedButton(
             onPressed: handleSubmit,
             style: ElevatedButton.styleFrom(
               backgroundColor: orange,
-              padding: const EdgeInsets.symmetric(
-                  vertical: 14, horizontal: 32),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(22)),
               elevation: 0,
@@ -701,13 +742,10 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
                     fontWeight: FontWeight.bold,
                     fontSize: 16)),
           ),
-
-          // Botón pista en modo pregunta
           if (rtaUrl != null) ...[
             const SizedBox(height: 14),
             _buildHintButton(rtaUrl),
           ],
-
           if (feedback.isNotEmpty) ...[
             const SizedBox(height: 14),
             Text(feedback,
@@ -724,8 +762,6 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
     );
   }
 
-  // ── Modo timer ───────────────────────────────────────────────
-
   Widget _buildTimerMode() {
     final rtaUrl = _getRtaImageUrl();
     final isCorrect = feedback.startsWith("✅");
@@ -738,41 +774,29 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 20,
-              color: isCorrect
-                  ? Colors.green.shade700
-                  : Colors.red.shade700,
+              color: isCorrect ? Colors.green.shade700 : Colors.red.shade700,
               fontWeight: FontWeight.w700,
             )),
         const SizedBox(height: 16),
-
-        // Imagen directa cuando fue correcta
         if (rtaUrl != null && isCorrect) ...[
           _buildImage(rtaUrl, size: 120),
           const SizedBox(height: 16),
         ],
-
-        // Botón pista cuando fue incorrecta (abre modal, no revela texto)
         if (rtaUrl != null && !isCorrect) ...[
           _buildHintButton(rtaUrl),
           const SizedBox(height: 16),
         ],
-
         Text("Repetimos esta pregunta en",
             textAlign: TextAlign.center,
-            style:
-                TextStyle(color: Colors.grey.shade700, fontSize: 15)),
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 15)),
         const SizedBox(height: 6),
         Text("$secondsLeft segundos...",
             textAlign: TextAlign.center,
             style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-                color: orange)),
+                fontSize: 26, fontWeight: FontWeight.bold, color: orange)),
       ],
     );
   }
-
-  // ── Done card ────────────────────────────────────────────────
 
   Widget _buildDoneCard() {
     return Column(
@@ -792,9 +816,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
         Text("Has completado todos los intervalos de esta tarjeta.",
             textAlign: TextAlign.center,
             style: TextStyle(
-                fontSize: 15,
-                color: Colors.grey.shade700,
-                height: 1.4)),
+                fontSize: 15, color: Colors.grey.shade700, height: 1.4)),
         const SizedBox(height: 28),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -811,8 +833,8 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
                 elevation: 0,
               ),
               child: const Text("Volver al menú",
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 15)),
+                  style:
+                      TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             ),
             const SizedBox(width: 12),
             ElevatedButton(
@@ -895,8 +917,7 @@ class _ClickableWordState extends State<_ClickableWord> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      widget.word
-                          .replaceAll(RegExp(r'[¿?¡!.,;:]'), ''),
+                      widget.word.replaceAll(RegExp(r'[¿?¡!.,;:]'), ''),
                       style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -908,8 +929,7 @@ class _ClickableWordState extends State<_ClickableWord> {
               const SizedBox(height: 16),
               Text("Toca para cerrar",
                   style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 13)),
+                      color: Colors.white.withOpacity(0.8), fontSize: 13)),
             ],
           ),
         ),
@@ -930,19 +950,16 @@ class _ClickableWordState extends State<_ClickableWord> {
         widget.word,
         style: TextStyle(
           fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: _pressed
-                ? Colors.black87          // oscurece al presionar
-                : Colors.black54,         // gris normal
-            decoration: TextDecoration.underline,
-            decorationColor: _pressed
-                ? const Color(0xFFFFEB3B) // amarillo al presionar
-                : Colors.black38,         // gris suave normal
-            decorationThickness: 2,
-            decorationStyle: TextDecorationStyle.solid,
-          ),
+          fontWeight: FontWeight.w700,
+          color: _pressed ? Colors.black87 : Colors.black54,
+          decoration: TextDecoration.underline,
+          decorationColor: _pressed
+              ? const Color(0xFFFFEB3B)
+              : Colors.black38,
+          decorationThickness: 2,
+          decorationStyle: TextDecorationStyle.solid,
         ),
-      
+      ),
     );
   }
 }
