@@ -62,20 +62,18 @@ class _VnestSelectVerbScreenState extends State<VnestSelectVerbScreen> {
   }
 
   Future<bool> _isEjercicioRevisado(String? idEjercicioGeneral) async {
-    if (idEjercicioGeneral == null || idEjercicioGeneral.isEmpty) {
-      return false;
-    }
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('ejercicios')
-          .doc(idEjercicioGeneral)
-          .get();
-      if (!doc.exists) return false;
-      return (doc.data()?['revisado'] ?? false) == true;
-    } catch (_) {
-      return false;
-    }
+  if (idEjercicioGeneral == null || idEjercicioGeneral.isEmpty) return false;
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('ejercicios')
+        .doc(idEjercicioGeneral)
+        .get();
+    if (!doc.exists) return false;
+    return (doc.data()?['aprobado'] ?? false) == true; // ← cambiar 'revisado' por 'aprobado'
+  } catch (_) {
+    return false;
   }
+}
 
   // ============================
   // 🔹 Extrae la URL de imagen del verbo desde el campo "imagenes"

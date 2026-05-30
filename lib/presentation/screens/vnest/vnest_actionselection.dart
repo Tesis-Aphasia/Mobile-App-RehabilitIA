@@ -570,6 +570,7 @@ class _VnestActionSelectionScreenState
               ),
             ),
             // ── Ícono de imagen con URL de Firebase ──
+            if (option.imageUrl != null)
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => _showImageDialog(option.word, option.imageUrl),
@@ -578,9 +579,7 @@ class _VnestActionSelectionScreenState
                 child: Icon(
                   Icons.image_outlined,
                   size: 22,
-                  color: option.imageUrl != null
-                      ? orange.withOpacity(0.7)
-                      : Colors.grey.shade300,
+                  color: orange.withOpacity(0.7),
                 ),
               ),
             ),
