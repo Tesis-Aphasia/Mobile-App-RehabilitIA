@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -102,12 +103,17 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
                   ],
                 ),
                 padding: const EdgeInsets.all(24),
-                child: Image.network(
-                  imageUrl,
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
                   height: 200,
                   width: 200,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
+                  placeholder: (_, __) => const SizedBox(
+                    height: 200,
+                    width: 200,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  errorWidget: (_, __, ___) => const Icon(
                       Icons.image_not_supported,
                       size: 60,
                       color: Colors.grey),
@@ -905,12 +911,17 @@ class _ClickableWordState extends State<_ClickableWord> {
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
-                    Image.network(
-                      widget.imageUrl,
+                    CachedNetworkImage(
+                      imageUrl: widget.imageUrl,
                       height: 200,
                       width: 200,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      placeholder: (_, __) => const SizedBox(
+                        height: 200,
+                        width: 200,
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                      errorWidget: (_, __, ___) => const Icon(
                           Icons.image_not_supported,
                           size: 60,
                           color: Colors.grey),

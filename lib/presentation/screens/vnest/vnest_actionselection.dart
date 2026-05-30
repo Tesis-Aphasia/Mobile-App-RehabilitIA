@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'vnest_shared_widgets.dart'; 
+import 'package:cached_network_image/cached_network_image.dart';
+import 'vnest_shared_widgets.dart';
 
 
 class VnestActionSelectionScreen extends StatefulWidget {
@@ -172,26 +173,17 @@ class _VnestActionSelectionScreenState
                   children: [
                     // ── Imagen desde Firebase ──
                     if (imageUrl != null)
-                      Image.network(
-                        imageUrl,
+                      CachedNetworkImage(
+                        imageUrl: imageUrl,
                         fit: BoxFit.contain,
                         height: 220,
-                        loadingBuilder: (context, child, progress) {
-                          if (progress == null) return child;
-                          return SizedBox(
-                            height: 220,
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: orange,
-                                value: progress.expectedTotalBytes != null
-                                    ? progress.cumulativeBytesLoaded /
-                                        progress.expectedTotalBytes!
-                                    : null,
-                              ),
-                            ),
-                          );
-                        },
-                        errorBuilder: (_, __, ___) => _noImagePlaceholder(),
+                        placeholder: (_, __) => SizedBox(
+                          height: 220,
+                          child: Center(
+                            child: CircularProgressIndicator(color: orange),
+                          ),
+                        ),
+                        errorWidget: (_, __, ___) => _noImagePlaceholder(),
                       )
                     else
                       _noImagePlaceholder(),
