@@ -23,6 +23,7 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
   final orange = const Color(0xFFF48A63);
 
   bool loading = true;
+  String? loadError;
   List<Map<String, dynamic>> cards = [];
   Map<String, dynamic>? currentCard;
   Map<String, dynamic>? cardState;
@@ -319,8 +320,17 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
   Future<void> _loadCards() async {
     final userId =
         Provider.of<RegisterViewModel>(context, listen: false).userId;
+    setState(() {
+      loading = true;
+      loadError = null;
+    });
+
+    final userId = Provider.of<RegisterViewModel>(context, listen: false).userId;
     if (userId == null || userId.isEmpty) {
-      setState(() => loading = false);
+      setState(() {
+        loading = false;
+        loadError = "No se pudo identificar tu sesión. Cierra sesión y vuelve a entrar.";
+      });
       return;
     }
 
@@ -354,6 +364,21 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
           .map((d) => {"id": d.id, ...d.data()})
           .toList()
           .cast<Map<String, dynamic>>();
+      // 3. Buscar en ejercicios_SR (Firestore permite maximo 30 valores por whereIn,
+      //    asi que se hace en lotes cuando hay mas ejercicios asignados que eso)
+      const batchSize = 30;
+      final data = <Map<String, dynamic>>[];
+      for (var i = 0; i < idsAsignados.length; i += batchSize) {
+        final batch = idsAsignados.sublist(
+          i,
+          i + batchSize > idsAsignados.length ? idsAsignados.length : i + batchSize,
+        );
+        final ejerciciosSnap = await FirebaseFirestore.instance
+            .collection("ejercicios_SR")
+            .where("id_ejercicio_general", whereIn: batch)
+            .get();
+        data.addAll(ejerciciosSnap.docs.map((d) => {"id": d.id, ...d.data()}));
+      }
 
       final aprobados = data.where((e) {
         if (e["aprobado"] != true) return false;
@@ -388,7 +413,10 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
       });
     } catch (e) {
       debugPrint("Error cargando ejercicios SR: $e");
-      setState(() => loading = false);
+      setState(() {
+        loading = false;
+        loadError = "No se pudieron cargar tus ejercicios. Revisa tu conexión e intenta de nuevo.";
+      });
     }
   }
 
@@ -537,6 +565,76 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
       return Scaffold(
         backgroundColor: background,
         body: Center(child: CircularProgressIndicator(color: orange)),
+      );
+    }
+
+    if (loadError != null) {
+      return Scaffold(
+        backgroundColor: background,
+        appBar: AppBar(
+          backgroundColor: background,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new_rounded, color: orange),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline_rounded,
+                  size: 80,
+                  color: Colors.red.shade400,
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  "No pudimos cargar tus ejercicios",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  loadError!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade700,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton(
+                  onPressed: _loadCards,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: orange,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    "Reintentar",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
