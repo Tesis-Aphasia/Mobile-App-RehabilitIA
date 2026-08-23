@@ -1,4 +1,5 @@
 import 'package:aphasia_mobile/presentation/screens/personalization/personalize_exercises_screen.dart';
+import 'package:aphasia_mobile/presentation/screens/sr/sr_mode_selection.dart';
 import 'package:flutter/material.dart';
 import '../presentation/screens/register/register_main_screen.dart';
 import '../presentation/screens/register/register_personal_screen.dart';
@@ -116,8 +117,21 @@ class AppRouter {
           builder: (_) => VnestConclusionScreen(exercise: args),
         );
 
+      // --- SR: selección de modo → ejercicio ---
       case '/sr':
-        return MaterialPageRoute(builder: (_) => const SRExercisesScreen());
+        return MaterialPageRoute(builder: (_) => const SRModeSelectionScreen());
+ 
+      case '/sr-exercises': {
+        final args = settings.arguments as Map<String, dynamic>?;
+        if (args == null || args['withImages'] == null) {
+          return _errorRoute("Faltan los datos del modo SR (args['withImages']).");
+        }
+        return MaterialPageRoute(
+          builder: (_) => SRExercisesScreen(
+            withImages: args['withImages'] as bool,
+          ),
+        );
+      }
 
       case '/personalize-exercises':
         return MaterialPageRoute(
