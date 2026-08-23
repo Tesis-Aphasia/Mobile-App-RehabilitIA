@@ -318,14 +318,13 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
   // ── Cargar tarjetas ──────────────────────────────────────────
 
   Future<void> _loadCards() async {
-    final userId =
-        Provider.of<RegisterViewModel>(context, listen: false).userId;
     setState(() {
       loading = true;
       loadError = null;
     });
 
-    final userId = Provider.of<RegisterViewModel>(context, listen: false).userId;
+    final userId =
+        Provider.of<RegisterViewModel>(context, listen: false).userId;
     if (userId == null || userId.isEmpty) {
       setState(() {
         loading = false;
@@ -355,15 +354,6 @@ class _SRExercisesScreenState extends State<SRExercisesScreen> {
         return;
       }
 
-      final ejerciciosSnap = await FirebaseFirestore.instance
-          .collection("ejercicios_SR")
-          .where("id_ejercicio_general", whereIn: idsAsignados)
-          .get();
-
-      final data = ejerciciosSnap.docs
-          .map((d) => {"id": d.id, ...d.data()})
-          .toList()
-          .cast<Map<String, dynamic>>();
       // 3. Buscar en ejercicios_SR (Firestore permite maximo 30 valores por whereIn,
       //    asi que se hace en lotes cuando hay mas ejercicios asignados que eso)
       const batchSize = 30;
