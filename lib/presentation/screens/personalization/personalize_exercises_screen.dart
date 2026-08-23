@@ -140,7 +140,9 @@ class _PersonalizeExercisesScreenState
           'verbo': m['verbo'],
           'id_ejercicio_general': m['id_ejercicio_general'] ?? d.id,
         };
-      }).where((e) => (e['verbo'] ?? '').toString().isNotEmpty).toList();
+      }).where((e) =>
+          (e['verbo'] ?? '').toString().isNotEmpty && e['aprobado'] == true
+      ).toList();
 
       // Diccionario base {verbo -> objeto}
       final Map<String, Map<String, dynamic>> verbsDict = {
